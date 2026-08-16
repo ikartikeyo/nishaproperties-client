@@ -7,7 +7,7 @@ export interface User {
   role: string;
 }
 
-interface AuthContextProps {
+export interface AuthContextProps {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string; user?: User }>;

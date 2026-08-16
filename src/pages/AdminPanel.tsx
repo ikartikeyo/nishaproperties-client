@@ -21,6 +21,9 @@ interface PropertyItem {
   city?: string;
   state?: string;
   address?: string;
+  postalCode?: string;
+  description?: string;
+  locationUrl?: string;
   latitude?: number;
   longitude?: number;
   locationAccuracy?: number;
