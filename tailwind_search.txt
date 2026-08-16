@@ -1,0 +1,10 @@
+﻿
+
+    Directory: D:\jija\client
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   2:57 PM              0 tailwind_search.txt                                                  
+
+

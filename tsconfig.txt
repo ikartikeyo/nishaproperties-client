@@ -1,0 +1,98 @@
+﻿
+
+    Directory: D:\jija\client\node_modules\call-bind-apply-helpers
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM            115 tsconfig.json                                                        
+
+
+    Directory: D:\jija\client\node_modules\dunder-proto
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM            116 tsconfig.json                                                        
+
+
+    Directory: D:\jija\client\node_modules\es-define-property
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM            138 tsconfig.json                                                        
+
+
+    Directory: D:\jija\client\node_modules\es-errors
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM           3170 tsconfig.json                                                        
+
+
+    Directory: D:\jija\client\node_modules\es-object-atoms
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM            112 tsconfig.json                                                        
+
+
+    Directory: D:\jija\client\node_modules\es-set-tostringtag
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM            116 tsconfig.json                                                        
+
+
+    Directory: D:\jija\client\node_modules\get-proto
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM            118 tsconfig.json                                                        
+
+
+    Directory: D:\jija\client\node_modules\gopd
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM            116 tsconfig.json                                                        
+
+
+    Directory: D:\jija\client\node_modules\has-symbols
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM            143 tsconfig.json                                                        
+
+
+    Directory: D:\jija\client\node_modules\has-tostringtag
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM           3611 tsconfig.json                                                        
+
+
+    Directory: D:\jija\client\node_modules\hasown
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM             73 tsconfig.json                                                        
+
+
+    Directory: D:\jija\client\node_modules\math-intrinsics
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM             36 tsconfig.json                                                        
+
+

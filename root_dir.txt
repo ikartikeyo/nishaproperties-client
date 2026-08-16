@@ -1,0 +1,26 @@
+﻿
+
+    Directory: D:\jija\client
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+d-----         8/16/2026   1:37 PM                node_modules                                                         
+d-----         8/16/2026   1:36 PM                public                                                               
+d-----         8/16/2026   2:14 PM                src                                                                  
+-a----         8/16/2026   2:57 PM            870 configjs.txt                                                         
+-a----         8/16/2026   2:57 PM            443 configts.txt                                                         
+-a----         8/16/2026   2:57 PM           1720 css_files.txt                                                        
+-a----         8/16/2026   2:57 PM              0 env_files.txt                                                        
+-a----         8/16/2026   2:33 PM          20090 package-lock.json                                                    
+-a----         8/16/2026   2:27 PM            619 package.json                                                         
+-a----         8/16/2026   2:57 PM              0 root_dir.txt                                                         
+-a----         8/16/2026   2:57 PM           1861 root_files.txt                                                       
+-a----         8/16/2026   2:57 PM              0 server_api.txt                                                       
+-a----         8/16/2026   2:57 PM            409 tailwind_search.txt                                                  
+-a----         8/16/2026   2:56 PM         255232 tree.txt                                                             
+-a----         8/16/2026   2:56 PM         224153 tree_src.txt                                                         
+-a----         8/16/2026   2:57 PM           5154 tsconfig.txt                                                         
+-a----         8/16/2026   2:57 PM            409 vite_search.txt                                                      
+
+

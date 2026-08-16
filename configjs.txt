@@ -1,0 +1,18 @@
+﻿
+
+    Directory: D:\jija\client\node_modules\axios\lib\core
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM           5761 mergeConfig.js                                                       
+
+
+    Directory: D:\jija\client\node_modules\axios\lib\helpers
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM           3516 resolveConfig.js                                                     
+
+

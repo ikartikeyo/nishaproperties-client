@@ -1,0 +1,25 @@
+﻿
+
+    Directory: D:\jija\client\node_modules\sweetalert2\dist
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM          34575 sweetalert2.css                                                      
+-a----         8/16/2026   1:37 PM          30251 sweetalert2.min.css                                                  
+
+
+    Directory: D:\jija\client\node_modules\sweetalert2\themes
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+-a----         8/16/2026   1:37 PM           5132 bootstrap-4.css                                                      
+-a----         8/16/2026   1:37 PM           5268 bootstrap-5.css                                                      
+-a----         8/16/2026   1:37 PM            964 borderless.css                                                       
+-a----         8/16/2026   1:37 PM           2791 bulma.css                                                            
+-a----         8/16/2026   1:37 PM            695 embed-iframe.css                                                     
+-a----         8/16/2026   1:37 PM           5505 material-ui.css                                                      
+-a----         8/16/2026   1:37 PM           1604 minimal.css                                                          
+
+
