@@ -6,6 +6,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import Header from "./components/Header";
+import Footer from "./components/Footer";
 import HomePage from "./pages/HomePage";
 import PropertyDetailPage from "./pages/PropertyDetailPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
@@ -45,6 +46,7 @@ const AppContent: React.FC = () => {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
+        <Footer />
       </div>
     </div>
   );
