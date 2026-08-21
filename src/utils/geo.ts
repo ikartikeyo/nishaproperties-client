@@ -142,12 +142,19 @@ export const getEffectiveLocationUrl = (property?: {
  * Smartly attempts to parse latitude and longitude from a pasted Google Maps URL or text string
  */
 export const extractCoordinatesFromUrl = (
-  url: string
+  rawUrl: string
 ): { latitude: number; longitude: number } | null => {
-  if (!url) return null;
+  if (!rawUrl) return null;
 
-  // 1. Match search/lat,+lon (e.g. google.com/maps/search/23.250221,+77.477635)
-  const searchMatch = url.match(/\/search\/(-?\d+\.\d+)[,+](?:%20|\+)?(-?\d+\.\d+)/);
+  let url = rawUrl;
+  try {
+    url = decodeURIComponent(rawUrl);
+  } catch (e) {
+    url = rawUrl;
+  }
+
+  // 1. Match search/lat,+lon or search/lat,%2Blon
+  const searchMatch = url.match(/\/search\/(-?\d+\.\d+)[,+](?:%20|\+|\%2B)?(-?\d+\.\d+)/i);
   if (searchMatch) {
     return {
       latitude: parseFloat(searchMatch[1]),
@@ -156,7 +163,7 @@ export const extractCoordinatesFromUrl = (
   }
 
   // 2. Match !3dlat!4dlon (Google Maps share / embed URLs)
-  const dMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  const dMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/i);
   if (dMatch) {
     return {
       latitude: parseFloat(dMatch[1]),
@@ -165,7 +172,7 @@ export const extractCoordinatesFromUrl = (
   }
 
   // 3. Match @lat,lon (e.g. google.com/maps/@12.9716,77.5946,15z)
-  const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/i);
   if (atMatch) {
     return {
       latitude: parseFloat(atMatch[1]),
@@ -174,7 +181,7 @@ export const extractCoordinatesFromUrl = (
   }
 
   // 4. Match q=lat,lon or query=lat,lon or ll=lat,lon
-  const qMatch = url.match(/[?&](?:q|query|ll)=(-?\d+\.\d+)[,+](?:%20|\+)?(-?\d+\.\d+)/);
+  const qMatch = url.match(/[?&](?:q|query|ll)=(-?\d+\.\d+)[,+](?:%20|\+|\%2B)?(-?\d+\.\d+)/i);
   if (qMatch) {
     return {
       latitude: parseFloat(qMatch[1]),
@@ -182,7 +189,16 @@ export const extractCoordinatesFromUrl = (
     };
   }
 
-  // 5. Match direct decimal lat, lon numbers in text (e.g. "23.250221, 77.477635")
+  // 5. Match center=lat%2Clon
+  const centerMatch = url.match(/center=(-?\d+\.\d+)(?:%2C|,)(-?\d+\.\d+)/i);
+  if (centerMatch) {
+    return {
+      latitude: parseFloat(centerMatch[1]),
+      longitude: parseFloat(centerMatch[2]),
+    };
+  }
+
+  // 6. Match direct decimal lat, lon numbers in text (e.g. "23.250221, 77.477635")
   const numMatch = url.match(/(-?\d+\.\d{3,})[,+\s]+(-?\d+\.\d{3,})/);
   if (numMatch) {
     return {
@@ -196,7 +212,7 @@ export const extractCoordinatesFromUrl = (
 
 /**
  * Resolves any Google Maps link (including short maps.app.goo.gl links)
- * to exact GPS coordinates, street address, city, and state.
+ * to exact GPS coordinates, street address, city, and state with multi-strategy fallback.
  */
 export const resolveLocationUrlDetails = async (
   rawUrl: string
@@ -216,7 +232,7 @@ export const resolveLocationUrlDetails = async (
 
   const url = rawUrl.trim();
 
-  // 1. Try local extraction first if URL directly has coordinates
+  // 1. Direct local coordinate extraction (if URL already contains numbers)
   const localCoords = extractCoordinatesFromUrl(url);
   if (localCoords && !url.includes("goo.gl")) {
     const geoData = await reverseGeocodeCoordinates(localCoords.latitude, localCoords.longitude);
@@ -227,27 +243,59 @@ export const resolveLocationUrlDetails = async (
     };
   }
 
-  // 2. Call backend resolver for short links and redirects (maps.app.goo.gl, etc.)
-  try {
-    const res = await fetch(`/api/property/resolve-maps-url?url=${encodeURIComponent(url)}`);
-    const data = await res.json();
-    if (res.ok && data.success && data.data?.latitude && data.data?.longitude) {
-      return {
-        latitude: data.data.latitude,
-        longitude: data.data.longitude,
-        address: data.data.address || "",
-        city: data.data.city || "",
-        state: data.data.state || "",
-        postalCode: data.data.postalCode || "",
-        country: data.data.country || "India",
-        formattedAddress: data.data.formattedAddress || "",
-      };
+  // 2. Strategy A: Call backend resolver endpoints (/api/property/resolve-maps-url or /api/resolve-maps-url)
+  const backendEndpoints = [
+    `/api/property/resolve-maps-url?url=${encodeURIComponent(url)}`,
+    `/api/resolve-maps-url?url=${encodeURIComponent(url)}`,
+    `https://nishaproperties-server.onrender.com/api/property/resolve-maps-url?url=${encodeURIComponent(url)}`,
+    `https://nishaproperties-server.onrender.com/api/resolve-maps-url?url=${encodeURIComponent(url)}`,
+  ];
+
+  for (const endpoint of backendEndpoints) {
+    try {
+      const res = await fetch(endpoint);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.data?.latitude && data.data?.longitude) {
+          return {
+            latitude: data.data.latitude,
+            longitude: data.data.longitude,
+            address: data.data.address || "",
+            city: data.data.city || "",
+            state: data.data.state || "",
+            postalCode: data.data.postalCode || "",
+            country: data.data.country || "India",
+            formattedAddress: data.data.formattedAddress || "",
+          };
+        }
+      }
+    } catch (err) {
+      // Continue to next fallback strategy
     }
-  } catch (err) {
-    console.warn("Backend map resolver warning:", err);
   }
 
-  // 3. Final fallback with local coordinates if any
+  // 3. Strategy B: Fast public unshortener API (unshorten.me)
+  try {
+    const unshortRes = await fetch(`https://unshorten.me/json/${encodeURIComponent(url)}`);
+    if (unshortRes.ok) {
+      const unshortData = await unshortRes.json();
+      if (unshortData.resolved_url) {
+        const coords = extractCoordinatesFromUrl(unshortData.resolved_url);
+        if (coords) {
+          const geoData = await reverseGeocodeCoordinates(coords.latitude, coords.longitude);
+          return {
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            ...geoData,
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Public unshortener warning:", err);
+  }
+
+  // 4. Final fallback with local coordinates if any
   if (localCoords) {
     const geoData = await reverseGeocodeCoordinates(localCoords.latitude, localCoords.longitude);
     return {
@@ -257,7 +305,7 @@ export const resolveLocationUrlDetails = async (
     };
   }
 
-  throw new Error("Could not extract location details from this Google Maps link. Please verify the URL.");
+  throw new Error("Could not extract location details from this Google Maps link. Please verify the URL or enter coordinates.");
 };
 
 /**
