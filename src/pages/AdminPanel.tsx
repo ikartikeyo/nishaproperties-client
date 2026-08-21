@@ -9,6 +9,7 @@ import {
   getGoogleMapsUrl,
   getEffectiveLocationUrl,
   extractCoordinatesFromUrl,
+  resolveLocationUrlDetails,
 } from "../utils/geo";
 import {
   uploadImageToCloudinaryDirect,
@@ -121,6 +122,7 @@ const AdminPanel: React.FC = () => {
     accuracy?: number;
     source: "DEVICE_GPS" | "IMAGE_EXIF" | "MANUAL" | "VERIFIED";
   } | null>(null);
+  const [resolvingMapUrl, setResolvingMapUrl] = useState(false);
 
   const [creating, setCreating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -219,24 +221,76 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  // Manual Google Maps URL Input Handler with Smart GPS Extraction
-  const handleLocationUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const url = e.target.value;
-    setNewProp((prev) => ({ ...prev, locationUrl: url }));
+  // Automated Google Maps URL Resolver & Address Autofiller
+  const handleAutoFillFromMapLink = async (targetUrl?: string) => {
+    const url = (targetUrl !== undefined ? targetUrl : newProp.locationUrl || "").trim();
+    if (!url) {
+      setMessage({
+        type: "error",
+        text: "Please enter or paste a valid Google Maps link (e.g. https://maps.app.goo.gl/...)",
+      });
+      return;
+    }
 
-    if (url) {
-      const extracted = extractCoordinatesFromUrl(url);
-      if (extracted) {
+    setResolvingMapUrl(true);
+    setMessage(null);
+
+    try {
+      const resolved = await resolveLocationUrlDetails(url);
+
+      // 1. Set GPS coordinates
+      setGpsData({
+        latitude: resolved.latitude,
+        longitude: resolved.longitude,
+        source: "MANUAL",
+      });
+
+      // 2. Autofill form address, city, state, postal code
+      setNewProp((prev) => ({
+        ...prev,
+        locationUrl: url,
+        city: resolved.city || prev.city,
+        state: resolved.state || prev.state,
+        address: resolved.address || (resolved.city ? `${resolved.city}, ${resolved.state || ""}` : prev.address),
+        postalCode: resolved.postalCode || prev.postalCode,
+      }));
+
+      setMessage({
+        type: "success",
+        text: `✓ Map Link Resolved! 📍 GPS (${resolved.latitude.toFixed(4)}, ${resolved.longitude.toFixed(4)}) & Location [${resolved.city || "Location"}, ${resolved.state || ""}] auto-filled!`,
+      });
+    } catch (err: any) {
+      console.warn("Map link resolution warning:", err);
+      // Fallback: check if basic coordinates exist in link
+      const fallbackCoords = extractCoordinatesFromUrl(url);
+      if (fallbackCoords) {
         setGpsData({
-          latitude: extracted.latitude,
-          longitude: extracted.longitude,
+          latitude: fallbackCoords.latitude,
+          longitude: fallbackCoords.longitude,
           source: "MANUAL",
         });
         setMessage({
           type: "success",
-          text: `📍 Extracted GPS from Maps link: ${extracted.latitude.toFixed(4)}, ${extracted.longitude.toFixed(4)}`,
+          text: `📍 Extracted GPS coordinates: ${fallbackCoords.latitude.toFixed(4)}, ${fallbackCoords.longitude.toFixed(4)}`,
+        });
+      } else {
+        setMessage({
+          type: "error",
+          text: err.message || "Could not auto-extract location from this link. Please enter details manually.",
         });
       }
+    } finally {
+      setResolvingMapUrl(false);
+    }
+  };
+
+  // Manual Google Maps URL Input Handler with Smart Auto-Trigger
+  const handleLocationUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    setNewProp((prev) => ({ ...prev, locationUrl: url }));
+
+    if (url.trim().length > 10 && (url.includes("maps") || url.includes("goo.gl") || url.match(/\d+\.\d+/))) {
+      handleAutoFillFromMapLink(url);
     }
   };
 
@@ -2185,19 +2239,53 @@ const AdminPanel: React.FC = () => {
                 </p>
               )}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                  {t("manualLocationLink")}
-                </label>
-                <input
-                  type="url"
-                  placeholder={t("manualLocationPlaceholder")}
-                  value={newProp.locationUrl}
-                  onChange={handleLocationUrlChange}
-                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    {t("manualLocationLink")}
+                  </label>
+                  {gpsData?.latitude && (
+                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                      <span>✓</span>
+                      <span>GPS & Address Locked</span>
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="url"
+                    placeholder={t("manualLocationPlaceholder")}
+                    value={newProp.locationUrl}
+                    onChange={handleLocationUrlChange}
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData("text");
+                      if (pasted) {
+                        setTimeout(() => handleAutoFillFromMapLink(pasted), 60);
+                      }
+                    }}
+                    className="flex-1 px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAutoFillFromMapLink()}
+                    disabled={resolvingMapUrl || !newProp.locationUrl}
+                    className="px-4 py-2.5 rounded-xl text-xs font-extrabold bg-blue-600 hover:bg-blue-700 text-white transition disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm shrink-0"
+                  >
+                    {resolvingMapUrl ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        <span>Resolving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>📍</span>
+                        <span>Autofill Address</span>
+                      </>
+                    )}
+                  </button>
+                </div>
                 <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 block">
-                  {t("manualLocationHint")}
+                  Paste any Google Maps link (e.g. https://maps.app.goo.gl/..., https://google.com/maps/@...) — Address, City, State, & GPS coordinates will be auto-filled instantly!
                 </span>
               </div>
 

@@ -5,6 +5,8 @@ import {
   getCurrentGPSCoordinates,
   reverseGeocodeCoordinates,
   getGoogleMapsUrl,
+  resolveLocationUrlDetails,
+  extractCoordinatesFromUrl,
 } from "../utils/geo";
 import { uploadMultipleImagesToCloudinaryDirect } from "../utils/cloudinaryDirect";
 
@@ -100,6 +102,9 @@ const SellPropertyPage: React.FC = () => {
     plotTitle: string;
   } | null>(null);
 
+  const [resolvingMapUrl, setResolvingMapUrl] = useState(false);
+  const [mapResolveMsg, setMapResolveMsg] = useState<string | null>(null);
+
   // Handle GPS Capture
   const handleCaptureGPS = async () => {
     setGpsLoading(true);
@@ -133,6 +138,67 @@ const SellPropertyPage: React.FC = () => {
       setGpsError(err.message || "Failed to retrieve GPS location. Please ensure location is enabled.");
     } finally {
       setGpsLoading(false);
+    }
+  };
+
+  // Automated Google Maps URL Resolver & Address Autofiller
+  const handleAutoFillFromMapLink = async (targetUrl?: string) => {
+    const url = (targetUrl !== undefined ? targetUrl : locationUrl || "").trim();
+    if (!url) {
+      setMapResolveMsg("Please enter or paste a valid Google Maps link");
+      return;
+    }
+
+    setResolvingMapUrl(true);
+    setMapResolveMsg(null);
+
+    try {
+      const resolved = await resolveLocationUrlDetails(url);
+
+      // Set GPS
+      setGpsData({
+        latitude: resolved.latitude,
+        longitude: resolved.longitude,
+        source: "MANUAL",
+      });
+
+      // Autofill address fields
+      setLocationUrl(url);
+      if (resolved.city) setCity(resolved.city);
+      if (resolved.state) setState(resolved.state);
+      if (resolved.postalCode) setPostalCode(resolved.postalCode);
+      if (resolved.address) {
+        setAddress(resolved.address);
+      } else if (resolved.city) {
+        setAddress(`${resolved.city}, ${resolved.state || ""}`);
+      }
+
+      setMapResolveMsg(`✓ Location Resolved: ${resolved.city || "Area"}, ${resolved.state || ""} (${resolved.latitude.toFixed(4)}, ${resolved.longitude.toFixed(4)}) - Address auto-filled!`);
+    } catch (err: any) {
+      console.warn("Map resolve warning:", err);
+      const fallbackCoords = extractCoordinatesFromUrl(url);
+      if (fallbackCoords) {
+        setGpsData({
+          latitude: fallbackCoords.latitude,
+          longitude: fallbackCoords.longitude,
+          source: "MANUAL",
+        });
+        setMapResolveMsg(`📍 Extracted GPS: ${fallbackCoords.latitude.toFixed(4)}, ${fallbackCoords.longitude.toFixed(4)}`);
+      } else {
+        setMapResolveMsg(err.message || "Could not auto-extract location from this link.");
+      }
+    } finally {
+      setResolvingMapUrl(false);
+    }
+  };
+
+  // Handle Location URL change with auto-trigger
+  const handleLocationUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    setLocationUrl(url);
+
+    if (url.trim().length > 10 && (url.includes("maps") || url.includes("goo.gl") || url.match(/\d+\.\d+/))) {
+      handleAutoFillFromMapLink(url);
     }
   };
 
@@ -692,17 +758,49 @@ const SellPropertyPage: React.FC = () => {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                      {language === "hi" ? "गूगल मैप्स लिंक (वैकल्पिक)" : "Google Maps Link (Optional)"}
-                    </label>
-                    <input
-                      type="url"
-                      placeholder="https://maps.google.com/..."
-                      value={locationUrl}
-                      onChange={(e) => setLocationUrl(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                    />
+                  <div className="space-y-1.5 sm:col-span-2 md:col-span-1">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                        {language === "hi" ? "गूगल मैप्स लिंक (वैकल्पिक)" : "Google Maps Link (Optional)"}
+                      </label>
+                      {gpsData?.latitude && (
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                          ✓ GPS Locked
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        placeholder="https://maps.app.goo.gl/..."
+                        value={locationUrl}
+                        onChange={handleLocationUrlChange}
+                        onPaste={(e) => {
+                          const pasted = e.clipboardData.getData("text");
+                          if (pasted) {
+                            setTimeout(() => handleAutoFillFromMapLink(pasted), 60);
+                          }
+                        }}
+                        className="flex-1 px-4 py-2.5 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAutoFillFromMapLink()}
+                        disabled={resolvingMapUrl || !locationUrl}
+                        className="px-3.5 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition disabled:opacity-50 flex items-center gap-1 shrink-0 shadow-sm"
+                      >
+                        {resolvingMapUrl ? (
+                          <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        ) : (
+                          <span>📍 Autofill</span>
+                        )}
+                      </button>
+                    </div>
+                    {mapResolveMsg && (
+                      <p className={`text-[11px] font-medium mt-1 ${mapResolveMsg.startsWith("✓") ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+                        {mapResolveMsg}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

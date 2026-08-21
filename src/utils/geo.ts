@@ -139,14 +139,32 @@ export const getEffectiveLocationUrl = (property?: {
 };
 
 /**
- * Smartly attempts to parse latitude and longitude from a pasted Google Maps URL
+ * Smartly attempts to parse latitude and longitude from a pasted Google Maps URL or text string
  */
 export const extractCoordinatesFromUrl = (
   url: string
 ): { latitude: number; longitude: number } | null => {
   if (!url) return null;
 
-  // Match @lat,lon (e.g. google.com/maps/@12.9716,77.5946,15z)
+  // 1. Match search/lat,+lon (e.g. google.com/maps/search/23.250221,+77.477635)
+  const searchMatch = url.match(/\/search\/(-?\d+\.\d+)[,+](?:%20|\+)?(-?\d+\.\d+)/);
+  if (searchMatch) {
+    return {
+      latitude: parseFloat(searchMatch[1]),
+      longitude: parseFloat(searchMatch[2]),
+    };
+  }
+
+  // 2. Match !3dlat!4dlon (Google Maps share / embed URLs)
+  const dMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  if (dMatch) {
+    return {
+      latitude: parseFloat(dMatch[1]),
+      longitude: parseFloat(dMatch[2]),
+    };
+  }
+
+  // 3. Match @lat,lon (e.g. google.com/maps/@12.9716,77.5946,15z)
   const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
   if (atMatch) {
     return {
@@ -155,8 +173,8 @@ export const extractCoordinatesFromUrl = (
     };
   }
 
-  // Match q=lat,lon or query=lat,lon (e.g. google.com/maps?q=12.9716,77.5946)
-  const qMatch = url.match(/[?&](?:q|query)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  // 4. Match q=lat,lon or query=lat,lon or ll=lat,lon
+  const qMatch = url.match(/[?&](?:q|query|ll)=(-?\d+\.\d+)[,+](?:%20|\+)?(-?\d+\.\d+)/);
   if (qMatch) {
     return {
       latitude: parseFloat(qMatch[1]),
@@ -164,16 +182,82 @@ export const extractCoordinatesFromUrl = (
     };
   }
 
-  // Match ll=lat,lon
-  const llMatch = url.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
-  if (llMatch) {
+  // 5. Match direct decimal lat, lon numbers in text (e.g. "23.250221, 77.477635")
+  const numMatch = url.match(/(-?\d+\.\d{3,})[,+\s]+(-?\d+\.\d{3,})/);
+  if (numMatch) {
     return {
-      latitude: parseFloat(llMatch[1]),
-      longitude: parseFloat(llMatch[2]),
+      latitude: parseFloat(numMatch[1]),
+      longitude: parseFloat(numMatch[2]),
     };
   }
 
   return null;
+};
+
+/**
+ * Resolves any Google Maps link (including short maps.app.goo.gl links)
+ * to exact GPS coordinates, street address, city, and state.
+ */
+export const resolveLocationUrlDetails = async (
+  rawUrl: string
+): Promise<{
+  latitude: number;
+  longitude: number;
+  address: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  formattedAddress: string;
+}> => {
+  if (!rawUrl || !rawUrl.trim()) {
+    throw new Error("Please provide a valid map link or URL.");
+  }
+
+  const url = rawUrl.trim();
+
+  // 1. Try local extraction first if URL directly has coordinates
+  const localCoords = extractCoordinatesFromUrl(url);
+  if (localCoords && !url.includes("goo.gl")) {
+    const geoData = await reverseGeocodeCoordinates(localCoords.latitude, localCoords.longitude);
+    return {
+      latitude: localCoords.latitude,
+      longitude: localCoords.longitude,
+      ...geoData,
+    };
+  }
+
+  // 2. Call backend resolver for short links and redirects (maps.app.goo.gl, etc.)
+  try {
+    const res = await fetch(`/api/property/resolve-maps-url?url=${encodeURIComponent(url)}`);
+    const data = await res.json();
+    if (res.ok && data.success && data.data?.latitude && data.data?.longitude) {
+      return {
+        latitude: data.data.latitude,
+        longitude: data.data.longitude,
+        address: data.data.address || "",
+        city: data.data.city || "",
+        state: data.data.state || "",
+        postalCode: data.data.postalCode || "",
+        country: data.data.country || "India",
+        formattedAddress: data.data.formattedAddress || "",
+      };
+    }
+  } catch (err) {
+    console.warn("Backend map resolver warning:", err);
+  }
+
+  // 3. Final fallback with local coordinates if any
+  if (localCoords) {
+    const geoData = await reverseGeocodeCoordinates(localCoords.latitude, localCoords.longitude);
+    return {
+      latitude: localCoords.latitude,
+      longitude: localCoords.longitude,
+      ...geoData,
+    };
+  }
+
+  throw new Error("Could not extract location details from this Google Maps link. Please verify the URL.");
 };
 
 /**
