@@ -199,6 +199,27 @@ const Header: React.FC = () => {
 
           {/* Mobile Actions & Hamburger Button */}
           <div className="flex md:hidden items-center gap-1.5 sm:gap-2">
+            {/* High-Priority Mobile Sell Land Button - Direct 1-Tap Access */}
+            <Link
+              to="/sell"
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-md active:scale-95 border ${
+                location.pathname === "/sell"
+                  ? "bg-emerald-600 text-white border-emerald-600 shadow-emerald-600/30"
+                  : "bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 text-white border-emerald-400/50 shadow-emerald-500/25"
+              }`}
+              title="Sell Land / जमीन बेचें"
+            >
+              <svg className="w-3.5 h-3.5 shrink-0 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="font-extrabold tracking-tight">
+                {language === "hi" ? "जमीन बेचें" : "Sell Land"}
+              </span>
+              <span className="hidden min-[380px]:inline-block px-1 py-0.2 text-[9px] font-black uppercase rounded bg-white/25 text-white">
+                FREE
+              </span>
+            </Link>
+
             {/* Quick Mobile Call Hotline */}
             <a
               href="tel:+918839041639"
@@ -230,7 +251,7 @@ const Header: React.FC = () => {
             {/* Quick Mobile Language Toggle */}
             <button
               onClick={toggleLanguage}
-              className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700 transition"
+              className="px-2 py-1.5 rounded-xl text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700 transition"
               title="Toggle Language"
             >
               {language === "en" ? "हिन्दी" : "EN"}
@@ -349,6 +370,66 @@ const Header: React.FC = () => {
             )}
           </div>
         )}
+      </div>
+
+      {/* Mobile Sticky Bottom Floating Navigation Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800/80 px-4 py-1.5 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.4)] flex items-center justify-around">
+        <Link
+          to="/"
+          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl text-[10px] font-extrabold transition ${
+            location.pathname === "/" || location.pathname === "/properties"
+              ? "text-blue-600 dark:text-blue-400 font-black"
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+          }`}
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+          <span>{language === "hi" ? "जमीन देखें" : "Explore"}</span>
+        </Link>
+
+        {/* Featured Center Raised Sell Land Button */}
+        <Link
+          to="/sell"
+          className="flex flex-col items-center -mt-5 group"
+        >
+          <div className="relative w-12 h-12 rounded-full bg-gradient-to-tr from-emerald-600 via-teal-500 to-emerald-400 text-white flex items-center justify-center shadow-lg shadow-emerald-600/40 border-2 border-white dark:border-[#0F172A] transform group-active:scale-95 transition-all">
+            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-300"></span>
+            </span>
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.8" d="M12 4v16m8-8H4" />
+            </svg>
+          </div>
+          <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 mt-0.5 tracking-tight">
+            {language === "hi" ? "🌾 जमीन बेचें" : "🌾 Sell Land"}
+          </span>
+        </Link>
+
+        {/* Call Helpline */}
+        <a
+          href="tel:+918839041639"
+          className="flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl text-[10px] font-extrabold text-slate-500 dark:text-slate-400 hover:text-emerald-600 transition"
+        >
+          <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+          </svg>
+          <span>{language === "hi" ? "कॉल करें" : "Call"}</span>
+        </a>
+
+        {/* WhatsApp Helpline */}
+        <a
+          href="https://wa.me/918839041639?text=Hello%20Nisha%20Properties,%20I%20want%20to%20sell%20or%20buy%20land%20in%20MP."
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl text-[10px] font-extrabold text-slate-500 dark:text-slate-400 hover:text-emerald-600 transition"
+        >
+          <svg className="w-5 h-5 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z" />
+          </svg>
+          <span>WhatsApp</span>
+        </a>
       </div>
     </header>
   );

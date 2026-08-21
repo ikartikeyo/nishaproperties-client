@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { Link } from "react-router-dom";
 import PropertyCard, { Property } from "../components/PropertyCard";
 import { useLanguage } from "../contexts/LanguageContext";
 import {
@@ -9,7 +10,7 @@ import {
 } from "../utils/geo";
 
 const HomePage: React.FC = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [properties, setProperties] = useState<Property[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -222,9 +223,26 @@ const HomePage: React.FC = () => {
               </span>
             </h1>
 
-            <p className="text-xs sm:text-base lg:text-lg text-slate-300/90 max-w-2xl mx-auto mb-6 sm:mb-10 leading-relaxed font-normal drop-shadow-sm">
+            <p className="text-xs sm:text-base lg:text-lg text-slate-300/90 max-w-2xl mx-auto mb-5 sm:mb-8 leading-relaxed font-normal drop-shadow-sm">
               {t("heroSubtitle")}
             </p>
+
+            {/* Prominent High-Priority Hero Action Button (Mobile-First) */}
+            <div className="flex flex-wrap items-center justify-center gap-3 mb-6 sm:mb-8">
+              <Link
+                to="/sell"
+                className="w-full sm:w-auto px-6 py-3.5 rounded-2xl text-sm sm:text-base font-black bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-xl shadow-emerald-500/30 hover:shadow-emerald-500/50 border border-emerald-300/40 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2.5 group"
+              >
+                <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></div>
+                <svg className="w-5 h-5 text-white shrink-0 group-hover:rotate-90 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>{language === "hi" ? "🌾 जमीन बेचने के लिए पोस्ट करें (Free)" : "🌾 Post Land for Sale (Free)"}</span>
+                <span className="px-2 py-0.5 text-[10px] font-black uppercase rounded-md bg-white/20 text-white tracking-wider">
+                  0% Brokerage
+                </span>
+              </Link>
+            </div>
 
             {/* 60% Transparent Glassmorphic Search Filter Bar */}
             <div className="bg-slate-900/40 backdrop-blur-xl p-2.5 sm:p-5 rounded-2xl sm:rounded-3xl shadow-2xl border border-white/15 text-slate-100 max-w-4xl mx-auto transition-all hover:border-white/25">
