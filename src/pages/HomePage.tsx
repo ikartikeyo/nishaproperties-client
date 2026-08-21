@@ -27,7 +27,7 @@ const HomePage: React.FC = () => {
     setIsLoading(true);
     setApiError(null);
 
-    fetch("/api/property")
+    fetch("/api/property?limit=100")
       .then((res) => {
         if (!res.ok) {
           throw new Error(`HTTP ${res.status} - Backend API issue`);
@@ -179,7 +179,9 @@ const HomePage: React.FC = () => {
       p.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.state?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.location?.toLowerCase().includes(searchTerm.toLowerCase());
+      p.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.description?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesType =
       propertyType === "all" ||
