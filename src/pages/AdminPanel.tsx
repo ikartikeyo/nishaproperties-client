@@ -840,8 +840,14 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  const buyerLeads = enquiries.filter((e) => e.enquiryType !== "SELL_LISTING");
-  const sellInquiries = enquiries.filter((e) => e.enquiryType === "SELL_LISTING");
+  const isSellEnquiry = (e: EnquiryItem) =>
+    e.enquiryType === "SELL_LISTING" ||
+    Boolean(e.plotTitle) ||
+    Boolean(e.message && e.message.includes("[SELL_LISTING]")) ||
+    Boolean(e.enquiryReference && e.enquiryReference.startsWith("SELL-"));
+
+  const buyerLeads = enquiries.filter((e) => !isSellEnquiry(e));
+  const sellInquiries = enquiries.filter(isSellEnquiry);
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-[#0B1120] text-slate-900 dark:text-slate-100 py-6 sm:py-8 px-3 sm:px-6 lg:px-8 transition-colors duration-200">

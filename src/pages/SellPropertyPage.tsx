@@ -219,12 +219,28 @@ const SellPropertyPage: React.FC = () => {
     setSubmitting(true);
 
     try {
-      const payload = {
+      // Auto-resolve a valid propertyId fallback to support older server schemas
+      let validPropertyId: string | undefined = undefined;
+      try {
+        const propRes = await fetch("/api/property?limit=1");
+        const propData = await propRes.json();
+        if (propData.success && Array.isArray(propData.data) && propData.data.length > 0) {
+          validPropertyId = propData.data[0]._id;
+        }
+      } catch (propErr) {
+        console.warn("Property ID fallback resolution warning:", propErr);
+      }
+
+      const formattedDescription = `[SELL_LISTING] Plot: ${plotTitle.trim()} | Category: ${propertyType} | Price: ₹${Number(expectedPrice || 0).toLocaleString("en-IN")} | Area: ${area} ${areaUnit} | Location: ${city.trim()}${state ? `, ${state.trim()}` : ""} | Details: ${description.trim()}`;
+
+      const payload: Record<string, any> = {
         enquiryType: "SELL_LISTING",
+        propertyId: validPropertyId || "6a821a6e46ba147456461264",
         fullName: fullName.trim(),
         mobileNumber: mobileNumber.trim(),
-        email: email.trim() || "seller@nishaproperties.com",
+        email: email.trim() || `${mobileNumber.trim()}@nishaproperties.com`,
         place: sellerPlace.trim() || city.trim(),
+        message: formattedDescription,
         plotTitle: plotTitle.trim(),
         propertyType,
         expectedPrice: Number(expectedPrice) || 0,
@@ -234,7 +250,7 @@ const SellPropertyPage: React.FC = () => {
         city: city.trim(),
         state: state.trim(),
         postalCode: postalCode.trim(),
-        description: description.trim(),
+        description: description.trim() || formattedDescription,
         locationUrl: locationUrl.trim() || (gpsData ? getGoogleMapsUrl(gpsData.latitude, gpsData.longitude) : ""),
         latitude: gpsData?.latitude,
         longitude: gpsData?.longitude,
