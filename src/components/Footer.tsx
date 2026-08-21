@@ -137,9 +137,15 @@ const Footer: React.FC = () => {
             © {new Date().getFullYear()} {t("brandName")}. All rights reserved.
           </div>
 
-          {/* RadorA Company Logo Watermark */}
-          <div className="flex items-center gap-2 group">
-            <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-black/95 dark:bg-black/90 border border-slate-700/70 dark:border-slate-800 backdrop-blur-md shadow-md transition-all duration-300 hover:border-blue-500/60 hover:shadow-lg hover:scale-[1.02]">
+          {/* RadorA Company Logo Watermark & Contact Info */}
+          <div className="flex flex-col items-center sm:items-end gap-2 group">
+            <a
+              href="https://www.radora.tech"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-black/95 dark:bg-black/90 border border-slate-700/70 dark:border-slate-800 backdrop-blur-md shadow-md transition-all duration-300 hover:border-blue-500/60 hover:shadow-lg hover:scale-[1.02]"
+              title="Visit RadorA - www.radora.tech"
+            >
               <span className="text-[11px] font-semibold text-slate-300">
                 Developed by
               </span>
@@ -151,6 +157,31 @@ const Footer: React.FC = () => {
                   (e.target as HTMLImageElement).src = "https://res.cloudinary.com/dae4jpydb/image/upload/v1787301477754/radora_logo.png";
                 }}
               />
+            </a>
+
+            {/* Official Website & Email */}
+            <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <a
+                href="https://www.radora.tech"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 transition"
+              >
+                <svg className="w-3.5 h-3.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                </svg>
+                <span>www.radora.tech</span>
+              </a>
+              <span className="text-slate-300 dark:text-slate-700">•</span>
+              <a
+                href="mailto:office@radora.tech"
+                className="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 transition"
+              >
+                <svg className="w-3.5 h-3.5 text-cyan-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span>office@radora.tech</span>
+              </a>
             </div>
           </div>
         </div>
