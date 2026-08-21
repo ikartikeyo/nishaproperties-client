@@ -813,7 +813,7 @@ const AdminPanel: React.FC = () => {
             parsed.desc ||
             `Land plot submitted for sale by ${enquiry.fullName}. Contact: ${enquiry.mobileNumber}`,
           images: parsed.images && parsed.images.length > 0 ? parsed.images : [],
-          status: "active",
+          status: "ACTIVE",
           isFeatured: false,
           locationUrl:
             enquiry.locationUrl ||
@@ -825,7 +825,7 @@ const AdminPanel: React.FC = () => {
           locationSource: enquiry.locationSource || "DEVICE_GPS",
         };
 
-        const propRes = await fetch("/api/property", {
+        const propRes = await fetch("/api/property/admin/properties", {
           method: "POST",
           headers: getAuthHeaders(),
           credentials: "include",
