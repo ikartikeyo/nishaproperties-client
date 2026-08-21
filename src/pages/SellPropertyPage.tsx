@@ -6,6 +6,7 @@ import {
   reverseGeocodeCoordinates,
   getGoogleMapsUrl,
 } from "../utils/geo";
+import { uploadMultipleImagesToCloudinaryDirect } from "../utils/cloudinaryDirect";
 
 const AREA_UNITS = [
   "Acre",
@@ -135,7 +136,7 @@ const SellPropertyPage: React.FC = () => {
     }
   };
 
-  // Handle Multiple Image Uploads
+  // Handle Multiple Image Uploads directly to Cloudinary CDN
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -143,42 +144,32 @@ const SellPropertyPage: React.FC = () => {
     setUploadingImages(true);
     setErrorMsg(null);
 
-    const formData = new FormData();
-    for (let i = 0; i < files.length; i++) {
-      formData.append("images", files[i]);
-    }
-
     try {
-      const res = await fetch("/api/property/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (data.success && data.data && Array.isArray(data.data.urls)) {
-        setImages((prev) => [...prev, ...data.data.urls]);
-      } else {
-        // Fallback: Read as base64 for instant preview
-        for (let i = 0; i < files.length; i++) {
-          const reader = new FileReader();
-          reader.onload = (uploadEvent) => {
-            if (uploadEvent.target?.result) {
-              setImages((prev) => [...prev, uploadEvent.target!.result as string]);
-            }
-          };
-          reader.readAsDataURL(files[i]);
-        }
+      // 1. Direct Cloudinary upload (signed with active credentials)
+      const uploadedUrls = await uploadMultipleImagesToCloudinaryDirect(files);
+      if (uploadedUrls && uploadedUrls.length > 0) {
+        setImages((prev) => [...prev, ...uploadedUrls]);
       }
-    } catch (err) {
-      console.warn("Server upload failed, converting to local preview:", err);
-      for (let i = 0; i < files.length; i++) {
-        const reader = new FileReader();
-        reader.onload = (uploadEvent) => {
-          if (uploadEvent.target?.result) {
-            setImages((prev) => [...prev, uploadEvent.target!.result as string]);
-          }
-        };
-        reader.readAsDataURL(files[i]);
+    } catch (err: any) {
+      console.warn("Direct Cloudinary upload error, trying backend upload fallback:", err);
+      try {
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+          formData.append("images", files[i]);
+        }
+        const res = await fetch("/api/property/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (data.success && data.data && Array.isArray(data.data.urls)) {
+          setImages((prev) => [...prev, ...data.data.urls]);
+        } else {
+          throw new Error("Upload response failed");
+        }
+      } catch (backErr) {
+        console.error("All upload attempts failed:", backErr);
+        setErrorMsg("Failed to upload photos. Please check your network connection.");
       }
     } finally {
       setUploadingImages(false);
@@ -231,8 +222,9 @@ const SellPropertyPage: React.FC = () => {
         console.warn("Property ID fallback resolution warning:", propErr);
       }
 
-      const formattedDescription = `[SELL_LISTING] Plot: ${plotTitle.trim()} | Category: ${propertyType} | Price: ₹${Number(expectedPrice || 0).toLocaleString("en-IN")} | Area: ${area} ${areaUnit} | Location: ${city.trim()}${state ? `, ${state.trim()}` : ""} | Details: ${description.trim()}`;
-      const placePayload = `${sellerPlace.trim() || city.trim()} | Plot: ${plotTitle.trim()} | Expected: ₹${Number(expectedPrice || 0).toLocaleString("en-IN")} | Area: ${area} ${areaUnit} | Category: ${propertyType} | Notes: ${description.trim() || "N/A"}`;
+      const photosListStr = images && images.length > 0 ? ` | Photos: ${images.join(" ,,, ")}` : "";
+      const formattedDescription = `[SELL_LISTING] Plot: ${plotTitle.trim()} | Category: ${propertyType} | Price: ₹${Number(expectedPrice || 0).toLocaleString("en-IN")} | Area: ${area} ${areaUnit} | Location: ${city.trim()}${state ? `, ${state.trim()}` : ""} | Details: ${description.trim()}${photosListStr}`;
+      const placePayload = `${sellerPlace.trim() || city.trim()} | Plot: ${plotTitle.trim()} | Expected: ₹${Number(expectedPrice || 0).toLocaleString("en-IN")} | Area: ${area} ${areaUnit} | Category: ${propertyType} | Notes: ${description.trim() || "N/A"}${photosListStr}`;
       const uniqueReference = `SELL-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 90)}`;
 
       const payload: Record<string, any> = {

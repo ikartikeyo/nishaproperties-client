@@ -10,6 +10,10 @@ import {
   getEffectiveLocationUrl,
   extractCoordinatesFromUrl,
 } from "../utils/geo";
+import {
+  uploadImageToCloudinaryDirect,
+  uploadMultipleImagesToCloudinaryDirect,
+} from "../utils/cloudinaryDirect";
 
 interface PropertyItem {
   _id: string;
@@ -319,26 +323,33 @@ const AdminPanel: React.FC = () => {
       // Trigger auto-GPS immediately on snapshot
       handleCaptureGPS();
 
-      const file = new File([blob], `plot-camera-${Date.now()}.jpg`, { type: "image/jpeg" });
-      const formData = new FormData();
-      formData.append("images", file);
-
       setUploadingImage(true);
       try {
-        const res = await fetch("/api/property/upload", {
-          method: "POST",
-          body: formData,
+        const file = new File([blob], `plot-camera-${Date.now()}.jpg`, { type: "image/jpeg" });
+        const directUrl = await uploadImageToCloudinaryDirect(file, "nisha_properties");
+        setUploadedImages((prev) => [...prev, directUrl]);
+        setMessage({
+          type: "success",
+          text: `✓ Photo captured! 📍 Live GPS location auto-locked and address autofilled!`,
         });
-        const data = await res.json();
-        if (res.ok && data.success && data.data?.urls) {
-          setUploadedImages((prev) => [...prev, ...data.data.urls]);
-          setMessage({
-            type: "success",
-            text: `✓ Photo captured! 📍 Live GPS location auto-locked and address autofilled!`,
-          });
-        }
       } catch (err: any) {
-        setMessage({ type: "error", text: "Failed to upload captured snapshot." });
+        console.warn("Direct snapshot upload fallback:", err);
+        try {
+          const file = new File([blob], `plot-camera-${Date.now()}.jpg`, { type: "image/jpeg" });
+          const formData = new FormData();
+          formData.append("images", file);
+          const res = await fetch("/api/property/upload", { method: "POST", body: formData });
+          const data = await res.json();
+          if (res.ok && data.success && data.data?.urls) {
+            setUploadedImages((prev) => [...prev, ...data.data.urls]);
+            setMessage({
+              type: "success",
+              text: `✓ Photo captured! 📍 Live GPS location auto-locked and address autofilled!`,
+            });
+          }
+        } catch (backErr) {
+          setMessage({ type: "error", text: "Failed to upload captured snapshot." });
+        }
       } finally {
         setUploadingImage(false);
       }
@@ -362,36 +373,42 @@ const AdminPanel: React.FC = () => {
     }
 
     try {
-      const formData = new FormData();
-      for (let i = 0; i < files.length; i++) {
-        formData.append("images", files[i]);
-      }
-
-      const res = await fetch("/api/property/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success && data.data?.urls) {
-        setUploadedImages((prev) => [...prev, ...data.data.urls]);
+      // 1. Direct Cloudinary upload
+      const directUrls = await uploadMultipleImagesToCloudinaryDirect(files, "nisha_properties");
+      if (directUrls && directUrls.length > 0) {
+        setUploadedImages((prev) => [...prev, ...directUrls]);
         setMessage({
           type: "success",
-          text: `✓ ${data.data.urls.length} photo(s) uploaded successfully! ${
+          text: `✓ ${directUrls.length} photo(s) uploaded successfully to Cloudinary! ${
             isFromCamera ? "📍 Auto-capturing on-site GPS coordinates..." : ""
           }`,
         });
-      } else {
-        setMessage({
-          type: "error",
-          text: data.message || "Failed to upload image.",
-        });
       }
     } catch (err: any) {
-      setMessage({
-        type: "error",
-        text: "Network error during image upload.",
-      });
+      console.warn("Direct upload error, falling back to server route:", err);
+      try {
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+          formData.append("images", files[i]);
+        }
+        const res = await fetch("/api/property/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (res.ok && data.success && data.data?.urls) {
+          setUploadedImages((prev) => [...prev, ...data.data.urls]);
+          setMessage({
+            type: "success",
+            text: `✓ ${data.data.urls.length} photo(s) uploaded successfully!`,
+          });
+        }
+      } catch (backErr) {
+        setMessage({
+          type: "error",
+          text: "Failed to upload photos. Please check your network connection.",
+        });
+      }
     } finally {
       setUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -847,6 +864,7 @@ const AdminPanel: React.FC = () => {
     let category = e.propertyType || "Agricultural";
     let loc = e.city || e.place || "—";
     let desc = e.description || e.message || "";
+    let images: string[] = Array.isArray(e.images) && e.images.length > 0 ? e.images : [];
 
     const sourceStr = `${e.message || ""} ${e.place || ""}`;
     if (sourceStr.includes("Plot:")) {
@@ -873,8 +891,17 @@ const AdminPanel: React.FC = () => {
       const mDesc = sourceStr.match(/(?:Details|Notes):\s*([^|]+)/i);
       if (mDesc && mDesc[1]) desc = mDesc[1].trim();
     }
+    if (images.length === 0 && sourceStr.includes("Photos:")) {
+      const mPhotos = sourceStr.match(/Photos:\s*([^|]+)/i);
+      if (mPhotos && mPhotos[1]) {
+        images = mPhotos[1]
+          .split(" ,,, ")
+          .map((s) => s.trim())
+          .filter((s) => s.startsWith("http") || s.startsWith("data:"));
+      }
+    }
 
-    return { title, priceStr, areaStr, category, loc, desc };
+    return { title, priceStr, areaStr, category, loc, desc, images };
   };
 
   const isSellEnquiry = (e: EnquiryItem) =>
@@ -1509,13 +1536,13 @@ const AdminPanel: React.FC = () => {
                             ) : null}
                           </td>
                           <td className="p-4">
-                            {e.images && e.images.length > 0 ? (
+                            {parsed.images && parsed.images.length > 0 ? (
                               <button
-                                onClick={() => setViewingSellEnquiry(e)}
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition"
+                                onClick={() => setViewingSellEnquiry({ ...e, images: parsed.images })}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800 transition"
                               >
                                 <span>📷</span>
-                                <span>{e.images.length} {e.images.length === 1 ? "photo" : "photos"}</span>
+                                <span>{parsed.images.length} {parsed.images.length === 1 ? "photo" : "photos"}</span>
                               </button>
                             ) : (
                               <span className="text-xs text-slate-400">No photos</span>
@@ -2287,15 +2314,28 @@ const AdminPanel: React.FC = () => {
               )}
 
               {/* Photos Gallery */}
-              {viewingSellEnquiry.images && viewingSellEnquiry.images.length > 0 && (
+              {modalParsed.images && modalParsed.images.length > 0 && (
                 <div>
                   <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
-                    Plot Photos ({viewingSellEnquiry.images.length})
+                    Plot Photos ({modalParsed.images.length})
                   </h4>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {viewingSellEnquiry.images.map((img, idx) => (
-                      <a key={idx} href={img} target="_blank" rel="noreferrer" className="rounded-xl overflow-hidden aspect-video border border-slate-200 dark:border-slate-700 group relative">
-                        <img src={img} alt={`Plot ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                    {modalParsed.images.map((img, idx) => (
+                      <a
+                        key={idx}
+                        href={img}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-xl overflow-hidden aspect-video border border-slate-200 dark:border-slate-700 group relative block shadow-sm"
+                      >
+                        <img
+                          src={img}
+                          alt={`Plot Photo ${idx + 1}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                          <span>🔍 Zoom</span>
+                        </div>
                       </a>
                     ))}
                   </div>
