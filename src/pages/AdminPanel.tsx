@@ -37,13 +37,33 @@ interface PropertyItem {
 interface EnquiryItem {
   _id: string;
   enquiryReference?: string;
+  enquiryType?: "BUY_LEAD" | "GENERAL" | "SELL_LISTING";
   propertyNameSnapshot?: string;
   propertyId?: any;
   fullName: string;
   place?: string;
   mobileNumber: string;
   email: string;
-  status: "NEW" | "CONTACTED" | "CLOSED";
+  message?: string;
+  // Sell listing fields
+  plotTitle?: string;
+  propertyType?: string;
+  expectedPrice?: number;
+  area?: number;
+  areaUnit?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  description?: string;
+  locationUrl?: string;
+  latitude?: number;
+  longitude?: number;
+  locationAccuracy?: number;
+  locationSource?: string;
+  images?: string[];
+  publishedPropertyId?: string;
+  status: "NEW" | "CONTACTED" | "REVIEWING" | "APPROVED" | "PUBLISHED" | "CLOSED";
   createdAt?: string;
 }
 
@@ -51,7 +71,7 @@ const AdminPanel: React.FC = () => {
   const { user } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
   const { theme, setTheme, toggleTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<"properties" | "enquiries" | "add-property">("properties");
+  const [activeTab, setActiveTab] = useState<"properties" | "enquiries" | "sell-enquiries" | "add-property">("properties");
 
   const [properties, setProperties] = useState<PropertyItem[]>([]);
   const [enquiries, setEnquiries] = useState<EnquiryItem[]>([]);
@@ -61,7 +81,12 @@ const AdminPanel: React.FC = () => {
   // Multi-select state
   const [selectedProps, setSelectedProps] = useState<string[]>([]);
   const [selectedEnqs, setSelectedEnqs] = useState<string[]>([]);
+  const [selectedSellEnqs, setSelectedSellEnqs] = useState<string[]>([]);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+
+  // Sell enquiry actions state
+  const [publishingEnquiryId, setPublishingEnquiryId] = useState<string | null>(null);
+  const [viewingSellEnquiry, setViewingSellEnquiry] = useState<EnquiryItem | null>(null);
 
   // Edit property state
   const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
@@ -709,13 +734,114 @@ const AdminPanel: React.FC = () => {
     );
   };
 
-  const toggleSelectAllEnquiries = () => {
-    if (selectedEnqs.length === enquiries.length) {
-      setSelectedEnqs([]);
-    } else {
-      setSelectedEnqs(enquiries.map((e) => e._id));
+  // 1-Click Publish Sell Inquiry as Live Property
+  const handlePublishSellListing = async (enquiry: EnquiryItem) => {
+    if (!window.confirm(`Publish "${enquiry.plotTitle || "this land plot"}" to the live catalog?`)) return;
+
+    setPublishingEnquiryId(enquiry._id);
+    try {
+      const res = await fetch(`/api/enquiry/admin/enquiries/${enquiry._id}/publish`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        credentials: "include",
+        body: JSON.stringify({ isFeatured: false }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setMessage({
+          type: "success",
+          text: `Plot "${data.data?.property?.title || "Land"}" published to active catalog successfully!`,
+        });
+        fetchData();
+      } else {
+        setMessage({
+          type: "error",
+          text: data.message || "Failed to publish plot to catalog.",
+        });
+      }
+    } catch (err: any) {
+      setMessage({
+        type: "error",
+        text: err.message || "Network error while publishing plot.",
+      });
+    } finally {
+      setPublishingEnquiryId(null);
     }
   };
+
+  const handleUpdateSellEnquiryStatus = async (id: string, newStatus: EnquiryItem["status"]) => {
+    setEnquiries((prev) =>
+      prev.map((e) => (e._id === id ? { ...e, status: newStatus } : e))
+    );
+
+    try {
+      await fetch(`/api/enquiry/admin/enquiries/${id}/status`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        credentials: "include",
+        body: JSON.stringify({ status: newStatus }),
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const toggleSelectSellEnquiry = (id: string) => {
+    setSelectedSellEnqs((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllSellEnquiries = (sellList: EnquiryItem[]) => {
+    if (selectedSellEnqs.length === sellList.length) {
+      setSelectedSellEnqs([]);
+    } else {
+      setSelectedSellEnqs(sellList.map((e) => e._id));
+    }
+  };
+
+  const handleBulkDeleteSellEnquiries = async () => {
+    if (selectedSellEnqs.length === 0) return;
+    if (!window.confirm(`Delete ${selectedSellEnqs.length} selected sell inquiry(ies)?`)) return;
+
+    const idsToDelete = [...selectedSellEnqs];
+    setIsDeletingBulk(true);
+
+    setEnquiries((prev) => prev.filter((e) => !idsToDelete.includes(e._id)));
+    setSelectedSellEnqs([]);
+
+    try {
+      const res = await fetch("/api/enquiry/admin/enquiries/bulk", {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+        credentials: "include",
+        body: JSON.stringify({ ids: idsToDelete }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setMessage({ type: "success", text: `${idsToDelete.length} sell enquiries deleted successfully.` });
+      } else {
+        fetchData();
+}
+    } catch (err) {
+      console.error(err);
+      fetchData();
+    } finally {
+      setIsDeletingBulk(false);
+    }
+  };
+
+  const toggleSelectAllEnquiries = () => {
+    if (selectedEnqs.length === buyerLeads.length) {
+      setSelectedEnqs([]);
+    } else {
+      setSelectedEnqs(buyerLeads.map((e) => e._id));
+    }
+  };
+
+  const buyerLeads = enquiries.filter((e) => e.enquiryType !== "SELL_LISTING");
+  const sellInquiries = enquiries.filter((e) => e.enquiryType === "SELL_LISTING");
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-[#0B1120] text-slate-900 dark:text-slate-100 py-6 sm:py-8 px-3 sm:px-6 lg:px-8 transition-colors duration-200">
@@ -740,40 +866,12 @@ const AdminPanel: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <button
-              onClick={() => {
-                setEditingPropertyId(null);
-                setNewProp({
-                  title: "",
-                  propertyType: "Agricultural",
-                  price: "",
-                  area: "",
-                  areaUnit: "Acre",
-                  address: "",
-                  city: "",
-                  state: "",
-                  postalCode: "",
-                  description: "",
-                  locationUrl: "",
-                  isFeatured: false,
-                });
-                setUploadedImages([]);
-                setGpsData(null);
-                setActiveTab("add-property");
-              }}
-              className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl font-bold text-xs text-white bg-blue-600 hover:bg-blue-700 transition shadow-md shadow-blue-500/20 flex items-center justify-center gap-1.5"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-              </svg>
-              <span>{t("addNewPlotBtn")}</span>
-            </button>
+          <div className="flex items-center gap-2">
             <Link
               to="/"
-              className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl font-semibold text-xs text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition text-center border border-slate-200 dark:border-slate-700"
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-1.5"
             >
-              {t("publicSiteLink")}
+              <span>{t("viewLiveCatalog")} ↗</span>
             </Link>
           </div>
         </div>
@@ -806,27 +904,29 @@ const AdminPanel: React.FC = () => {
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">{t("customerInquiries")}</span>
-            <span className="text-2xl sm:text-3xl font-extrabold text-blue-600 dark:text-blue-400 mt-1 block">{enquiries.length}</span>
+            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">{t("customerInquiries")} (Buyers)</span>
+            <span className="text-2xl sm:text-3xl font-extrabold text-blue-600 dark:text-blue-400 mt-1 block">{buyerLeads.length}</span>
             <span className="text-[11px] text-blue-500 dark:text-blue-400 font-semibold mt-1 block">
-              {enquiries.filter((e) => e.status === "NEW").length} {t("leadsReceived")}
+              {buyerLeads.filter((e) => e.status === "NEW").length} {t("leadsReceived")}
             </span>
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">{t("featuredPlots")}</span>
-            <span className="text-2xl sm:text-3xl font-extrabold text-amber-500 dark:text-amber-400 mt-1 block">
-              {properties.filter((p) => p.isFeatured).length}
+            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Plots for Sale (Sellers)</span>
+            <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1 block">
+              {sellInquiries.length}
             </span>
-            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold mt-1 block">{t("highlightedOnHomepage")}</span>
+            <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1 block">
+              {sellInquiries.filter((e) => e.status === "NEW").length} New Submissions
+            </span>
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
             <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">{t("gpsVerifiedPlots")}</span>
-            <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1 block">
+            <span className="text-2xl sm:text-3xl font-extrabold text-purple-600 dark:text-purple-400 mt-1 block">
               {properties.filter((p) => p.latitude && p.longitude).length}
             </span>
-            <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1 block">{t("directMapsEnabled")}</span>
+            <span className="text-[11px] text-purple-600 dark:text-purple-400 font-semibold mt-1 block">{t("directMapsEnabled")}</span>
           </div>
         </div>
 
@@ -850,7 +950,20 @@ const AdminPanel: React.FC = () => {
                 : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
-            {t("tabCustomerInquiries")} ({enquiries.length})
+            {t("tabCustomerInquiries")} ({buyerLeads.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("sell-enquiries")}
+            className={`py-3 px-4 sm:px-6 font-bold text-xs sm:text-sm rounded-t-xl transition whitespace-nowrap flex items-center gap-2 ${
+              activeTab === "sell-enquiries"
+                ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 border-t-2 border-l border-r border-slate-200 dark:border-slate-800 shadow-sm"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+            }`}
+          >
+            <span>Plots for Sale (Seller Leads)</span>
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+              {sellInquiries.length}
+            </span>
           </button>
           <button
             onClick={() => {
@@ -1045,16 +1158,16 @@ const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 2: ENQUIRIES LIST */}
+        {/* TAB 2: BUYER ENQUIRIES LIST */}
         {activeTab === "enquiries" && (
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden space-y-0">
             
             {/* Header & Bulk Actions Toolbar */}
             <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-800/40">
               <div className="flex items-center gap-3">
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">{t("customerInquiries")}</h2>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">{t("customerInquiries")} (Buyers)</h2>
                 <span className="text-xs bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-full font-bold">
-                  {enquiries.length}
+                  {buyerLeads.length}
                 </span>
               </div>
 
@@ -1089,7 +1202,7 @@ const AdminPanel: React.FC = () => {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
                 {t("loadingProperties")}
               </div>
-            ) : enquiries.length === 0 ? (
+            ) : buyerLeads.length === 0 ? (
               <div className="p-12 text-center text-slate-500 dark:text-slate-400 text-sm">
                 {t("noInquiriesInTable")}
               </div>
@@ -1101,7 +1214,7 @@ const AdminPanel: React.FC = () => {
                       <th className="p-4 w-12 text-center">
                         <input
                           type="checkbox"
-                          checked={selectedEnqs.length === enquiries.length && enquiries.length > 0}
+                          checked={selectedEnqs.length === buyerLeads.length && buyerLeads.length > 0}
                           onChange={toggleSelectAllEnquiries}
                           className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer"
                         />
@@ -1116,7 +1229,7 @@ const AdminPanel: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {enquiries.map((e) => {
+                    {buyerLeads.map((e) => {
                       const isSelected = selectedEnqs.includes(e._id);
                       return (
                         <tr
@@ -1195,7 +1308,273 @@ const AdminPanel: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 3: ADD / EDIT PLOT */}
+        {/* TAB 3: PLOTS FOR SALE (SELLER LEADS) */}
+        {activeTab === "sell-enquiries" && (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden space-y-0">
+            {/* Header & Bulk Actions Toolbar */}
+            <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-800/40">
+              <div className="flex items-center gap-3">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">Plots for Sale (Seller Submissions)</h2>
+                <span className="text-xs bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-2.5 py-0.5 rounded-full font-bold border border-emerald-300 dark:border-emerald-700">
+                  {sellInquiries.length} {sellInquiries.length === 1 ? "listing" : "listings"}
+                </span>
+              </div>
+
+              {/* Bulk Action Bar */}
+              {selectedSellEnqs.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap animate-fadeIn">
+                  <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                    {selectedSellEnqs.length} Selected
+                  </span>
+                  <button
+                    onClick={handleBulkDeleteSellEnquiries}
+                    disabled={isDeletingBulk}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition shadow-sm flex items-center gap-1.5"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Selected ({selectedSellEnqs.length})
+                  </button>
+                  <button
+                    onClick={() => setSelectedSellEnqs([])}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                  >
+                    Deselect All
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {loading ? (
+              <div className="p-12 text-center text-slate-500 dark:text-slate-400 text-sm">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto mb-3"></div>
+                Loading seller submissions...
+              </div>
+            ) : sellInquiries.length === 0 ? (
+              <div className="p-12 text-center text-slate-500 dark:text-slate-400 text-sm space-y-2">
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 mx-auto flex items-center justify-center mb-3">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+                <p className="font-bold text-slate-700 dark:text-slate-300">No Land-for-Sale Submissions Yet</p>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">When consumers use the "Sell Land" form on the website, their submissions with plot specs and photos will appear here.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300 min-w-[950px]">
+                  <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 text-xs uppercase font-bold border-b border-slate-200 dark:border-slate-800">
+                    <tr>
+                      <th className="p-4 w-12 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedSellEnqs.length === sellInquiries.length && sellInquiries.length > 0}
+                          onChange={() => toggleSelectAllSellEnquiries(sellInquiries)}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-700 cursor-pointer"
+                        />
+                      </th>
+                      <th className="p-4">Plot / Land Details</th>
+                      <th className="p-4">Seller Contact</th>
+                      <th className="p-4">Price & Area</th>
+                      <th className="p-4">Location & GPS</th>
+                      <th className="p-4">Photos</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {sellInquiries.map((e) => {
+                      const isSelected = selectedSellEnqs.includes(e._id);
+                      return (
+                        <tr
+                          key={e._id}
+                          className={`transition ${
+                            isSelected ? "bg-emerald-50/60 dark:bg-emerald-950/40 hover:bg-emerald-50 dark:hover:bg-emerald-950/60" : "hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                          }`}
+                        >
+                          <td className="p-4 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelectSellEnquiry(e._id)}
+                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-700 cursor-pointer"
+                            />
+                          </td>
+                          <td className="p-4 max-w-xs">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                {e.enquiryReference || "SELL-REF"}
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                {e.propertyType || "Land"}
+                              </span>
+                            </div>
+                            <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm block line-clamp-2">
+                              {e.plotTitle || e.propertyNameSnapshot || "Plot for Sale"}
+                            </span>
+                          </td>
+                          <td className="p-4">
+                            <span className="font-bold text-slate-900 dark:text-white text-xs block">{e.fullName}</span>
+                            <span className="font-mono text-xs text-slate-700 dark:text-slate-300 block">{e.mobileNumber}</span>
+                            {e.email && e.email !== "consumer@nishaproperties.com" && (
+                              <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate max-w-[140px]">{e.email}</span>
+                            )}
+                          </td>
+                          <td className="p-4">
+                            <span className="font-black text-emerald-600 dark:text-emerald-400 text-xs block">
+                              {e.expectedPrice ? `₹${Number(e.expectedPrice).toLocaleString("en-IN")}` : "On Request"}
+                            </span>
+                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                              {e.area || "—"} {e.areaUnit || "Acre"}
+                            </span>
+                          </td>
+                          <td className="p-4">
+                            <span className="text-xs font-medium text-slate-800 dark:text-slate-200 block">
+                              {e.city || e.place || "—"}{e.state ? `, ${e.state}` : ""}
+                            </span>
+                            {e.latitude && e.longitude ? (
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${e.latitude},${e.longitude}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline mt-0.5"
+                              >
+                                <svg className="w-3 h-3 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                </svg>
+                                <span>GPS Map ↗</span>
+                              </a>
+                            ) : e.locationUrl ? (
+                              <a
+                                href={e.locationUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                Map Link ↗
+                              </a>
+                            ) : null}
+                          </td>
+                          <td className="p-4">
+                            {e.images && e.images.length > 0 ? (
+                              <button
+                                onClick={() => setViewingSellEnquiry(e)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition"
+                              >
+                                <span>📷</span>
+                                <span>{e.images.length} {e.images.length === 1 ? "photo" : "photos"}</span>
+                              </button>
+                            ) : (
+                              <span className="text-xs text-slate-400">No photos</span>
+                            )}
+                          </td>
+                          <td className="p-4">
+                            <select
+                              value={e.status}
+                              onChange={(evt) => handleUpdateSellEnquiryStatus(e._id, evt.target.value as any)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
+                                e.status === "PUBLISHED"
+                                  ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700"
+                                  : e.status === "APPROVED"
+                                  ? "bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border-teal-300 dark:border-teal-700"
+                                  : e.status === "CONTACTED"
+                                  ? "bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700"
+                                  : e.status === "CLOSED"
+                                  ? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700"
+                                  : "bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700"
+                              }`}
+                            >
+                              <option value="NEW">NEW</option>
+                              <option value="REVIEWING">REVIEWING</option>
+                              <option value="CONTACTED">CONTACTED</option>
+                              <option value="APPROVED">APPROVED</option>
+                              <option value="PUBLISHED">PUBLISHED</option>
+                              <option value="CLOSED">CLOSED</option>
+                            </select>
+                          </td>
+                          <td className="p-4 text-right space-x-1.5 flex items-center justify-end whitespace-nowrap">
+                            {/* View Full Details Modal Button */}
+                            <button
+                              onClick={() => setViewingSellEnquiry(e)}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 transition"
+                              title="View full plot details and photos"
+                            >
+                              View Details
+                            </button>
+
+                            {/* 1-Click Publish to Catalog */}
+                            {e.status !== "PUBLISHED" ? (
+                              <button
+                                onClick={() => handlePublishSellListing(e)}
+                                disabled={publishingEnquiryId === e._id}
+                                className="px-3 py-1.5 rounded-lg text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white transition shadow-sm flex items-center gap-1 disabled:opacity-50"
+                                title="Publish this seller's plot directly to the live website catalog"
+                              >
+                                {publishingEnquiryId === e._id ? (
+                                  <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                ) : (
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                                <span>Publish</span>
+                              </button>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300">
+                                ✓ Live
+                              </span>
+                            )}
+
+                            {/* WhatsApp Connect */}
+                            <a
+                              href={`https://wa.me/${e.mobileNumber.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                                `Hello ${e.fullName}, thank you for submitting your land "${e.plotTitle || "Plot for Sale"}" (Ref: ${e.enquiryReference || "SELL"}) on Nisha Properties. When is a good time to discuss verification and listing?`
+                              )}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1 shadow-sm"
+                              title="Chat on WhatsApp"
+                            >
+                              <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" />
+                              </svg>
+                              <span>WhatsApp</span>
+                            </a>
+
+                            {/* Direct Call */}
+                            <a
+                              href={`tel:${e.mobileNumber.replace(/[^0-9]/g, "")}`}
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition"
+                              title="Call seller"
+                            >
+                              <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                              </svg>
+                            </a>
+
+                            {/* Delete Button */}
+                            <button
+                              onClick={() => handleDeleteEnquiry(e._id)}
+                              className="p-1.5 rounded-lg text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 transition"
+                              title="Delete submission"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4: ADD / EDIT PLOT */}
         {activeTab === "add-property" && (
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-8 shadow-sm">
             <div className="border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1772,6 +2151,121 @@ const AdminPanel: React.FC = () => {
               >
                 {t("filePickerFallback")}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW SELL ENQUIRY DETAILS MODAL */}
+      {viewingSellEnquiry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                  {viewingSellEnquiry.enquiryReference || "SELL-REF"}
+                </span>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">
+                  {viewingSellEnquiry.plotTitle || "Plot for Sale"}
+                </h3>
+              </div>
+              <button
+                onClick={() => setViewingSellEnquiry(null)}
+                className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Grid Specifications */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <span className="text-slate-400 block font-semibold">Category</span>
+                <span className="text-slate-900 dark:text-white font-bold">{viewingSellEnquiry.propertyType || "Agricultural"}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <span className="text-slate-400 block font-semibold">Expected Price</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">
+                  {viewingSellEnquiry.expectedPrice ? `₹${Number(viewingSellEnquiry.expectedPrice).toLocaleString("en-IN")}` : "On Request"}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <span className="text-slate-400 block font-semibold">Total Area</span>
+                <span className="text-slate-900 dark:text-white font-bold">{viewingSellEnquiry.area || "—"} {viewingSellEnquiry.areaUnit || "Acre"}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <span className="text-slate-400 block font-semibold">City / District</span>
+                <span className="text-slate-900 dark:text-white font-bold">{viewingSellEnquiry.city || viewingSellEnquiry.place || "—"}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <span className="text-slate-400 block font-semibold">State</span>
+                <span className="text-slate-900 dark:text-white font-bold">{viewingSellEnquiry.state || "Madhya Pradesh"}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <span className="text-slate-400 block font-semibold">Pincode</span>
+                <span className="text-slate-900 dark:text-white font-bold">{viewingSellEnquiry.postalCode || "—"}</span>
+              </div>
+            </div>
+
+            {/* Seller Information */}
+            <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 space-y-2 text-xs">
+              <span className="font-extrabold text-blue-900 dark:text-blue-300 block uppercase tracking-wider text-[11px]">
+                Seller Contact Information
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-800 dark:text-slate-200 font-medium">
+                <div><strong>Name:</strong> {viewingSellEnquiry.fullName}</div>
+                <div><strong>Mobile:</strong> {viewingSellEnquiry.mobileNumber}</div>
+                <div><strong>Email:</strong> {viewingSellEnquiry.email}</div>
+                <div><strong>Seller Place:</strong> {viewingSellEnquiry.place || viewingSellEnquiry.city || "—"}</div>
+              </div>
+            </div>
+
+            {/* Description */}
+            {viewingSellEnquiry.description && (
+              <div>
+                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">Description & Highlights</h4>
+                <p className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                  {viewingSellEnquiry.description}
+                </p>
+              </div>
+            )}
+
+            {/* Photos Gallery */}
+            {viewingSellEnquiry.images && viewingSellEnquiry.images.length > 0 && (
+              <div>
+                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
+                  Plot Photos ({viewingSellEnquiry.images.length})
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {viewingSellEnquiry.images.map((img, idx) => (
+                    <a key={idx} href={img} target="_blank" rel="noreferrer" className="rounded-xl overflow-hidden aspect-video border border-slate-200 dark:border-slate-700 group relative">
+                      <img src={img} alt={`Plot ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Modal Bottom Actions */}
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+              <button
+                onClick={() => setViewingSellEnquiry(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+              >
+                Close
+              </button>
+              {viewingSellEnquiry.status !== "PUBLISHED" && (
+                <button
+                  onClick={() => {
+                    const item = viewingSellEnquiry;
+                    setViewingSellEnquiry(null);
+                    handlePublishSellListing(item);
+                  }}
+                  className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md"
+                >
+                  ✨ Publish to Live Catalog
+                </button>
+              )}
             </div>
           </div>
         </div>

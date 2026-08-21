@@ -9,6 +9,7 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import HomePage from "./pages/HomePage";
 import PropertyDetailPage from "./pages/PropertyDetailPage";
+import SellPropertyPage from "./pages/SellPropertyPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
 import AdminPanel from "./pages/AdminPanel";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -26,6 +27,7 @@ const AppContent: React.FC = () => {
             <Route path="/properties" element={<HomePage />} />
             <Route path="/properties/:id" element={<PropertyDetailPage />} />
             <Route path="/property/:id" element={<PropertyDetailPage />} />
+            <Route path="/sell" element={<SellPropertyPage />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route
               path="/admin"
