@@ -862,8 +862,13 @@ const AdminPanel: React.FC = () => {
     let priceStr = e.expectedPrice ? `₹${Number(e.expectedPrice).toLocaleString("en-IN")}` : "On Request";
     let areaStr = e.area ? `${e.area} ${e.areaUnit || "Acre"}` : "—";
     let category = e.propertyType || "Agricultural";
-    let loc = e.city || e.place || "—";
-    let desc = e.description || e.message || "";
+    let loc = e.city || "";
+    if (!loc && e.place) {
+      loc = e.place.split("|")[0].trim();
+    }
+    if (!loc) loc = "—";
+
+    let desc = e.description || "";
     let images: string[] = Array.isArray(e.images) && e.images.length > 0 ? e.images : [];
 
     const sourceStr = `${e.message || ""} ${e.place || ""}`;
@@ -887,10 +892,20 @@ const AdminPanel: React.FC = () => {
       const mLoc = sourceStr.match(/Location:\s*([^|]+)/i);
       if (mLoc && mLoc[1]) loc = mLoc[1].trim();
     }
+    if (loc.includes("|")) {
+      loc = loc.split("|")[0].trim() || "—";
+    }
+
     if (sourceStr.includes("Details:") || sourceStr.includes("Notes:")) {
       const mDesc = sourceStr.match(/(?:Details|Notes):\s*([^|]+)/i);
       if (mDesc && mDesc[1]) desc = mDesc[1].trim();
+    } else if (!desc && e.message && !e.message.startsWith("[SELL_LISTING]")) {
+      desc = e.message;
     }
+    if (desc.includes("| Photos:")) {
+      desc = desc.split("| Photos:")[0].trim();
+    }
+
     if (images.length === 0 && sourceStr.includes("Photos:")) {
       const mPhotos = sourceStr.match(/Photos:\s*([^|]+)/i);
       if (mPhotos && mPhotos[1]) {
@@ -2240,66 +2255,66 @@ const AdminPanel: React.FC = () => {
         const modalParsed = parsePlotDetails(viewingSellEnquiry);
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-                <div>
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden border border-slate-200 dark:border-slate-800 shadow-2xl p-5 sm:p-7 space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4 gap-3">
+                <div className="min-w-0 flex-1">
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 inline-block">
                     {viewingSellEnquiry.enquiryReference || "ENQ-REF"}
                   </span>
-                  <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">
+                  <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white mt-1 truncate" title={modalParsed.title}>
                     {modalParsed.title}
                   </h3>
                 </div>
                 <button
                   onClick={() => setViewingSellEnquiry(null)}
-                  className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition"
+                  className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition shrink-0"
                 >
                   ✕
                 </button>
               </div>
 
               {/* Grid Specifications */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                  <span className="text-slate-400 block font-semibold">Category / Type</span>
-                  <span className="text-slate-900 dark:text-white font-bold">{modalParsed.category}</span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <span className="text-slate-400 block font-semibold text-[11px]">Category / Type</span>
+                  <span className="text-slate-900 dark:text-white font-bold truncate block">{modalParsed.category}</span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                  <span className="text-slate-400 block font-semibold">Expected Price</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <span className="text-slate-400 block font-semibold text-[11px]">Expected Price</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-extrabold truncate block">
                     {modalParsed.priceStr}
                   </span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                  <span className="text-slate-400 block font-semibold">Total Area</span>
-                  <span className="text-slate-900 dark:text-white font-bold">{modalParsed.areaStr}</span>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <span className="text-slate-400 block font-semibold text-[11px]">Total Area</span>
+                  <span className="text-slate-900 dark:text-white font-bold truncate block">{modalParsed.areaStr}</span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                  <span className="text-slate-400 block font-semibold">Location / Place</span>
-                  <span className="text-slate-900 dark:text-white font-bold">{modalParsed.loc}</span>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <span className="text-slate-400 block font-semibold text-[11px]">Location / Place</span>
+                  <span className="text-slate-900 dark:text-white font-bold truncate block" title={modalParsed.loc}>{modalParsed.loc}</span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                  <span className="text-slate-400 block font-semibold">Status</span>
-                  <span className="text-slate-900 dark:text-white font-bold">{viewingSellEnquiry.status || "NEW"}</span>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <span className="text-slate-400 block font-semibold text-[11px]">Status</span>
+                  <span className="text-slate-900 dark:text-white font-bold truncate block">{viewingSellEnquiry.status || "NEW"}</span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                  <span className="text-slate-400 block font-semibold">Submission Date</span>
-                  <span className="text-slate-900 dark:text-white font-bold">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <span className="text-slate-400 block font-semibold text-[11px]">Submission Date</span>
+                  <span className="text-slate-900 dark:text-white font-bold truncate block">
                     {viewingSellEnquiry.createdAt ? new Date(viewingSellEnquiry.createdAt).toLocaleDateString("en-IN") : "Recent"}
                   </span>
                 </div>
               </div>
 
               {/* Contact Information */}
-              <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 space-y-2 text-xs">
+              <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 space-y-2 text-xs overflow-hidden">
                 <span className="font-extrabold text-blue-900 dark:text-blue-300 block uppercase tracking-wider text-[11px]">
                   User / Seller Contact Information
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-800 dark:text-slate-200 font-medium">
-                  <div><strong>Name:</strong> {viewingSellEnquiry.fullName}</div>
-                  <div><strong>Mobile:</strong> {viewingSellEnquiry.mobileNumber}</div>
-                  <div><strong>Email:</strong> {viewingSellEnquiry.email}</div>
-                  <div><strong>City/District:</strong> {viewingSellEnquiry.city || viewingSellEnquiry.place || "—"}</div>
+                  <div className="truncate"><strong>Name:</strong> {viewingSellEnquiry.fullName}</div>
+                  <div className="truncate"><strong>Mobile:</strong> {viewingSellEnquiry.mobileNumber}</div>
+                  <div className="truncate"><strong>Email:</strong> {viewingSellEnquiry.email}</div>
+                  <div className="truncate" title={modalParsed.loc}><strong>City/District:</strong> {modalParsed.loc}</div>
                 </div>
               </div>
 
