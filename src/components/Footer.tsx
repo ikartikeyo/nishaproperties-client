@@ -137,16 +137,20 @@ const Footer: React.FC = () => {
             © {new Date().getFullYear()} {t("brandName")}. All rights reserved.
           </div>
 
-          {/* RadorA Company Watermark */}
+          {/* RadorA Company Logo Watermark */}
           <div className="flex items-center gap-2 group">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 backdrop-blur-md shadow-sm transition-all duration-300 hover:border-blue-500/50 hover:shadow-md hover:scale-[1.02]">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-black/95 dark:bg-black/90 border border-slate-700/70 dark:border-slate-800 backdrop-blur-md shadow-md transition-all duration-300 hover:border-blue-500/60 hover:shadow-lg hover:scale-[1.02]">
+              <span className="text-[11px] font-semibold text-slate-300">
                 Developed by
               </span>
-              <span className="text-xs font-black tracking-wider uppercase text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 dark:from-blue-400 dark:via-indigo-300 dark:to-cyan-400 drop-shadow-sm">
-                RadorA
-              </span>
+              <img
+                src="/radora-logo.png"
+                alt="RadorA - Building What's Next"
+                className="h-6 sm:h-7 w-auto object-contain shrink-0"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://res.cloudinary.com/dae4jpydb/image/upload/v1787301477754/radora_logo.png";
+                }}
+              />
             </div>
           </div>
         </div>
