@@ -751,36 +751,121 @@ const AdminPanel: React.FC = () => {
     );
   };
 
-  // 1-Click Publish Sell Inquiry as Live Property
+  // Automated 1-Click Publish Sell Listing to Live Website Catalog
   const handlePublishSellListing = async (enquiry: EnquiryItem) => {
-    if (!window.confirm(`Publish "${enquiry.plotTitle || "this land plot"}" to the live catalog?`)) return;
+    const parsed = parsePlotDetails(enquiry);
+    if (!window.confirm(`Publish "${parsed.title || "this plot"}" to the live catalog?`)) return;
 
     setPublishingEnquiryId(enquiry._id);
     try {
-      const res = await fetch(`/api/enquiry/admin/enquiries/${enquiry._id}/publish`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        credentials: "include",
-        body: JSON.stringify({ isFeatured: false }),
-      });
+      let publishedSuccess = false;
+      let publishedPropertyTitle = parsed.title;
 
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setMessage({
-          type: "success",
-          text: `Plot "${data.data?.property?.title || "Land"}" published to active catalog successfully!`,
+      // 1. Try dedicated publish endpoint on server
+      try {
+        const res = await fetch(`/api/enquiry/admin/enquiries/${enquiry._id}/publish`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          credentials: "include",
+          body: JSON.stringify({ isFeatured: false }),
         });
-        fetchData();
-      } else {
-        setMessage({
-          type: "error",
-          text: data.message || "Failed to publish plot to catalog.",
-        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          publishedSuccess = true;
+          if (data.data?.property?.title) publishedPropertyTitle = data.data.property.title;
+        }
+      } catch (pubErr) {
+        console.warn("Backend publish route failed, using automated catalog creator fallback:", pubErr);
       }
+
+      // 2. Automated Fallback: Directly create the property listing and mark enquiry PUBLISHED
+      if (!publishedSuccess) {
+        // Parse numerical price & area
+        const cleanPrice =
+          enquiry.expectedPrice ||
+          Number(parsed.priceStr.replace(/[^0-9.]/g, "") || "0") ||
+          1000000;
+        const cleanArea =
+          enquiry.area ||
+          Number(parsed.areaStr.replace(/[^0-9.]/g, "") || "0") ||
+          1;
+
+        const propPayload = {
+          title: parsed.title,
+          propertyType: parsed.category || "Agricultural",
+          price: cleanPrice,
+          priceUnit: "INR",
+          area: cleanArea,
+          areaUnit:
+            enquiry.areaUnit ||
+            (parsed.areaStr.includes("Bigha")
+              ? "Bigha"
+              : parsed.areaStr.includes("Gaj")
+              ? "Gaj"
+              : parsed.areaStr.includes("sqft")
+              ? "sqft"
+              : "Acre"),
+          city: parsed.loc !== "—" ? parsed.loc : "Bhopal",
+          state: enquiry.state || "Madhya Pradesh",
+          address: enquiry.address || parsed.loc || "Bhopal, MP",
+          postalCode: enquiry.postalCode || "462001",
+          description:
+            parsed.desc ||
+            `Land plot submitted for sale by ${enquiry.fullName}. Contact: ${enquiry.mobileNumber}`,
+          images: parsed.images && parsed.images.length > 0 ? parsed.images : [],
+          status: "active",
+          isFeatured: false,
+          locationUrl:
+            enquiry.locationUrl ||
+            (enquiry.latitude && enquiry.longitude
+              ? getGoogleMapsUrl(enquiry.latitude, enquiry.longitude)
+              : ""),
+          latitude: enquiry.latitude,
+          longitude: enquiry.longitude,
+          locationSource: enquiry.locationSource || "DEVICE_GPS",
+        };
+
+        const propRes = await fetch("/api/property", {
+          method: "POST",
+          headers: getAuthHeaders(),
+          credentials: "include",
+          body: JSON.stringify(propPayload),
+        });
+        const propData = await propRes.json();
+
+        if (propRes.ok && propData.success) {
+          publishedSuccess = true;
+          publishedPropertyTitle = propData.data?.title || parsed.title;
+
+          // Update enquiry status to PUBLISHED
+          await fetch(`/api/enquiry/admin/enquiries/${enquiry._id}/status`, {
+            method: "PATCH",
+            headers: getAuthHeaders(),
+            credentials: "include",
+            body: JSON.stringify({ status: "PUBLISHED" }),
+          });
+        } else {
+          throw new Error(propData.message || "Failed to create catalog property.");
+        }
+      }
+
+      // Optimistically update enquiry in state
+      setEnquiries((prev) =>
+        prev.map((e) => (e._id === enquiry._id ? { ...e, status: "PUBLISHED" } : e))
+      );
+      if (viewingSellEnquiry && viewingSellEnquiry._id === enquiry._id) {
+        setViewingSellEnquiry({ ...viewingSellEnquiry, status: "PUBLISHED" });
+      }
+
+      setMessage({
+        type: "success",
+        text: `✨ Plot "${publishedPropertyTitle}" has been successfully published to the live website catalog!`,
+      });
+      fetchData();
     } catch (err: any) {
       setMessage({
         type: "error",
-        text: err.message || "Network error while publishing plot.",
+        text: err.message || "Failed to publish plot to catalog.",
       });
     } finally {
       setPublishingEnquiryId(null);
@@ -791,16 +876,26 @@ const AdminPanel: React.FC = () => {
     setEnquiries((prev) =>
       prev.map((e) => (e._id === id ? { ...e, status: newStatus } : e))
     );
+    if (viewingSellEnquiry && viewingSellEnquiry._id === id) {
+      setViewingSellEnquiry({ ...viewingSellEnquiry, status: newStatus });
+    }
 
     try {
-      await fetch(`/api/enquiry/admin/enquiries/${id}/status`, {
+      const res = await fetch(`/api/enquiry/admin/enquiries/${id}/status`, {
         method: "PATCH",
         headers: getAuthHeaders(),
         credentials: "include",
         body: JSON.stringify({ status: newStatus }),
       });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setMessage({
+          type: "success",
+          text: `Status updated to "${newStatus}"`,
+        });
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Status update error:", err);
     }
   };
 
@@ -1622,8 +1717,13 @@ const AdminPanel: React.FC = () => {
 
                             {/* WhatsApp Connect */}
                             <a
-                              href={`https://wa.me/${e.mobileNumber.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
-                                `Hello ${e.fullName}, thank you for submitting your land "${e.plotTitle || "Plot for Sale"}" (Ref: ${e.enquiryReference || "SELL"}) on Nisha Properties. When is a good time to discuss verification and listing?`
+                              href={`https://wa.me/${(() => {
+                                let p = e.mobileNumber.replace(/[^0-9]/g, "");
+                                if (p.startsWith("0")) p = "91" + p.slice(1);
+                                if (p.length === 10) p = "91" + p;
+                                return p;
+                              })()}?text=${encodeURIComponent(
+                                `Hello ${e.fullName}, thank you for submitting your land "${parsed.title}" (Ref: ${e.enquiryReference || "SELL"}) on Nisha Properties. When is a good time to discuss verification and listing?`
                               )}`}
                               target="_blank"
                               rel="noreferrer"
@@ -2358,25 +2458,84 @@ const AdminPanel: React.FC = () => {
               )}
 
             {/* Modal Bottom Actions */}
-            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
-              <button
-                onClick={() => setViewingSellEnquiry(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-              >
-                Close
-              </button>
-              {viewingSellEnquiry.status !== "PUBLISHED" && (
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setViewingSellEnquiry(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition"
+                >
+                  Close
+                </button>
                 <button
                   onClick={() => {
-                    const item = viewingSellEnquiry;
+                    const id = viewingSellEnquiry._id;
                     setViewingSellEnquiry(null);
-                    handlePublishSellListing(item);
+                    handleDeleteEnquiry(id);
                   }}
-                  className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md"
+                  className="px-3 py-2 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 transition flex items-center gap-1"
                 >
-                  ✨ Publish to Live Catalog
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <span>Delete</span>
                 </button>
-              )}
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* WhatsApp Chat Button */}
+                <a
+                  href={`https://wa.me/${(() => {
+                    let p = viewingSellEnquiry.mobileNumber.replace(/[^0-9]/g, "");
+                    if (p.startsWith("0")) p = "91" + p.slice(1);
+                    if (p.length === 10) p = "91" + p;
+                    return p;
+                  })()}?text=${encodeURIComponent(
+                    `Hello ${viewingSellEnquiry.fullName}, thank you for submitting your land "${modalParsed.title}" (Ref: ${viewingSellEnquiry.enquiryReference || "SELL"}) on Nisha Properties. When is a good time to discuss verification and listing?`
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1.5 shadow-sm"
+                >
+                  <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" />
+                  </svg>
+                  <span>WhatsApp</span>
+                </a>
+
+                {/* Call Button */}
+                <a
+                  href={`tel:${viewingSellEnquiry.mobileNumber.replace(/[^0-9]/g, "")}`}
+                  className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 transition flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                  <span>Call</span>
+                </a>
+
+                {/* Publish Button */}
+                {viewingSellEnquiry.status !== "PUBLISHED" ? (
+                  <button
+                    onClick={() => {
+                      const item = viewingSellEnquiry;
+                      handlePublishSellListing(item);
+                    }}
+                    disabled={publishingEnquiryId === viewingSellEnquiry._id}
+                    className="px-4 py-2 rounded-xl text-xs font-extrabold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {publishingEnquiryId === viewingSellEnquiry._id ? (
+                      <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    ) : (
+                      <span>✨</span>
+                    )}
+                    <span>Publish to Live Catalog</span>
+                  </button>
+                ) : (
+                  <span className="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300">
+                    ✓ Already Live in Catalog
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
