@@ -233,9 +233,11 @@ const SellPropertyPage: React.FC = () => {
 
       const formattedDescription = `[SELL_LISTING] Plot: ${plotTitle.trim()} | Category: ${propertyType} | Price: ₹${Number(expectedPrice || 0).toLocaleString("en-IN")} | Area: ${area} ${areaUnit} | Location: ${city.trim()}${state ? `, ${state.trim()}` : ""} | Details: ${description.trim()}`;
       const placePayload = `${sellerPlace.trim() || city.trim()} | Plot: ${plotTitle.trim()} | Expected: ₹${Number(expectedPrice || 0).toLocaleString("en-IN")} | Area: ${area} ${areaUnit} | Category: ${propertyType} | Notes: ${description.trim() || "N/A"}`;
+      const uniqueReference = `SELL-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 90)}`;
 
       const payload: Record<string, any> = {
         enquiryType: "SELL_LISTING",
+        enquiryReference: uniqueReference,
         propertyId: validPropertyId || "6a821a6e46ba147456461264",
         fullName: fullName.trim(),
         mobileNumber: mobileNumber.trim(),

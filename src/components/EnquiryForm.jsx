@@ -27,6 +27,7 @@ const EnquiryForm = ({ isOpen, setIsOpen, landId, landTitle }) => {
     try {
       const payload = {
         propertyId: landId,
+        enquiryReference: `ENQ-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 90)}`,
         fullName: formData.fullName,
         place: formData.place,
         mobileNumber: formData.mobileNumber,

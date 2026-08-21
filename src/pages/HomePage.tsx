@@ -70,6 +70,7 @@ const HomePage: React.FC = () => {
 
     try {
       const payload = {
+        enquiryReference: `ENQ-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 90)}`,
         fullName: enqForm.fullName,
         mobileNumber: enqForm.mobileNumber,
         email: enqForm.email,
