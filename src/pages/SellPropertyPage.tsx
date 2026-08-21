@@ -232,6 +232,7 @@ const SellPropertyPage: React.FC = () => {
       }
 
       const formattedDescription = `[SELL_LISTING] Plot: ${plotTitle.trim()} | Category: ${propertyType} | Price: ₹${Number(expectedPrice || 0).toLocaleString("en-IN")} | Area: ${area} ${areaUnit} | Location: ${city.trim()}${state ? `, ${state.trim()}` : ""} | Details: ${description.trim()}`;
+      const placePayload = `${sellerPlace.trim() || city.trim()} | Plot: ${plotTitle.trim()} | Expected: ₹${Number(expectedPrice || 0).toLocaleString("en-IN")} | Area: ${area} ${areaUnit} | Category: ${propertyType} | Notes: ${description.trim() || "N/A"}`;
 
       const payload: Record<string, any> = {
         enquiryType: "SELL_LISTING",
@@ -239,7 +240,7 @@ const SellPropertyPage: React.FC = () => {
         fullName: fullName.trim(),
         mobileNumber: mobileNumber.trim(),
         email: email.trim() || `${mobileNumber.trim()}@nishaproperties.com`,
-        place: sellerPlace.trim() || city.trim(),
+        place: placePayload,
         message: formattedDescription,
         plotTitle: plotTitle.trim(),
         propertyType,

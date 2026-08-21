@@ -840,10 +840,48 @@ const AdminPanel: React.FC = () => {
     }
   };
 
+  const parsePlotDetails = (e: EnquiryItem) => {
+    let title = e.plotTitle || (e.propertyNameSnapshot && e.propertyNameSnapshot !== "Land Plot" ? e.propertyNameSnapshot : "Plot for Sale");
+    let priceStr = e.expectedPrice ? `₹${Number(e.expectedPrice).toLocaleString("en-IN")}` : "On Request";
+    let areaStr = e.area ? `${e.area} ${e.areaUnit || "Acre"}` : "—";
+    let category = e.propertyType || "Agricultural";
+    let loc = e.city || e.place || "—";
+    let desc = e.description || e.message || "";
+
+    const sourceStr = `${e.message || ""} ${e.place || ""}`;
+    if (sourceStr.includes("Plot:")) {
+      const mTitle = sourceStr.match(/Plot:\s*([^|]+)/i);
+      if (mTitle && mTitle[1]) title = mTitle[1].trim();
+    }
+    if (sourceStr.includes("Price:") || sourceStr.includes("Expected:")) {
+      const mPrice = sourceStr.match(/(?:Price|Expected):\s*([^|]+)/i);
+      if (mPrice && mPrice[1]) priceStr = mPrice[1].trim();
+    }
+    if (sourceStr.includes("Area:")) {
+      const mArea = sourceStr.match(/Area:\s*([^|]+)/i);
+      if (mArea && mArea[1]) areaStr = mArea[1].trim();
+    }
+    if (sourceStr.includes("Category:")) {
+      const mCat = sourceStr.match(/Category:\s*([^|]+)/i);
+      if (mCat && mCat[1]) category = mCat[1].trim();
+    }
+    if (sourceStr.includes("Location:")) {
+      const mLoc = sourceStr.match(/Location:\s*([^|]+)/i);
+      if (mLoc && mLoc[1]) loc = mLoc[1].trim();
+    }
+    if (sourceStr.includes("Details:") || sourceStr.includes("Notes:")) {
+      const mDesc = sourceStr.match(/(?:Details|Notes):\s*([^|]+)/i);
+      if (mDesc && mDesc[1]) desc = mDesc[1].trim();
+    }
+
+    return { title, priceStr, areaStr, category, loc, desc };
+  };
+
   const isSellEnquiry = (e: EnquiryItem) =>
     e.enquiryType === "SELL_LISTING" ||
     Boolean(e.plotTitle) ||
-    Boolean(e.message && e.message.includes("[SELL_LISTING]")) ||
+    Boolean(e.message && (e.message.includes("[SELL_LISTING]") || e.message.includes("Plot: "))) ||
+    Boolean(e.place && (e.place.includes("Plot: ") || e.place.includes("Expected: "))) ||
     Boolean(e.enquiryReference && e.enquiryReference.startsWith("SELL-"));
 
   const buyerLeads = enquiries.filter((e) => !isSellEnquiry(e));
@@ -1278,6 +1316,13 @@ const AdminPanel: React.FC = () => {
                             </span>
                           </td>
                           <td className="p-4 text-right space-x-1.5 flex items-center justify-end whitespace-nowrap">
+                            <button
+                              onClick={() => setViewingSellEnquiry(e)}
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+                              title="View full enquiry & contact details"
+                            >
+                              View Details
+                            </button>
                             <a
                               href={`https://wa.me/${e.mobileNumber.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
                                 `Hello ${e.fullName}, I am following up on your inquiry (${e.enquiryReference || "ENQ"}) for "${e.propertyNameSnapshot || "Land Plot"}". When is a convenient time to discuss details?`
@@ -1392,6 +1437,7 @@ const AdminPanel: React.FC = () => {
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {sellInquiries.map((e) => {
                       const isSelected = selectedSellEnqs.includes(e._id);
+                      const parsed = parsePlotDetails(e);
                       return (
                         <tr
                           key={e._id}
@@ -1413,11 +1459,11 @@ const AdminPanel: React.FC = () => {
                                 {e.enquiryReference || "SELL-REF"}
                               </span>
                               <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                {e.propertyType || "Land"}
+                                {parsed.category}
                               </span>
                             </div>
                             <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm block line-clamp-2">
-                              {e.plotTitle || e.propertyNameSnapshot || "Plot for Sale"}
+                              {parsed.title}
                             </span>
                           </td>
                           <td className="p-4">
@@ -1429,15 +1475,15 @@ const AdminPanel: React.FC = () => {
                           </td>
                           <td className="p-4">
                             <span className="font-black text-emerald-600 dark:text-emerald-400 text-xs block">
-                              {e.expectedPrice ? `₹${Number(e.expectedPrice).toLocaleString("en-IN")}` : "On Request"}
+                              {parsed.priceStr}
                             </span>
                             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
-                              {e.area || "—"} {e.areaUnit || "Acre"}
+                              {parsed.areaStr}
                             </span>
                           </td>
                           <td className="p-4">
                             <span className="text-xs font-medium text-slate-800 dark:text-slate-200 block">
-                              {e.city || e.place || "—"}{e.state ? `, ${e.state}` : ""}
+                              {parsed.loc}
                             </span>
                             {e.latitude && e.longitude ? (
                               <a
@@ -2162,95 +2208,99 @@ const AdminPanel: React.FC = () => {
         </div>
       )}
 
-      {/* VIEW SELL ENQUIRY DETAILS MODAL */}
-      {viewingSellEnquiry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-              <div>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                  {viewingSellEnquiry.enquiryReference || "SELL-REF"}
-                </span>
-                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">
-                  {viewingSellEnquiry.plotTitle || "Plot for Sale"}
-                </h3>
+      {/* VIEW ENQUIRY / SELL DETAILS MODAL */}
+      {viewingSellEnquiry && (() => {
+        const modalParsed = parsePlotDetails(viewingSellEnquiry);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 space-y-6">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                <div>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                    {viewingSellEnquiry.enquiryReference || "ENQ-REF"}
+                  </span>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">
+                    {modalParsed.title}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setViewingSellEnquiry(null)}
+                  className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                onClick={() => setViewingSellEnquiry(null)}
-                className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition"
-              >
-                ✕
-              </button>
-            </div>
 
-            {/* Grid Specifications */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <span className="text-slate-400 block font-semibold">Category</span>
-                <span className="text-slate-900 dark:text-white font-bold">{viewingSellEnquiry.propertyType || "Agricultural"}</span>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <span className="text-slate-400 block font-semibold">Expected Price</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">
-                  {viewingSellEnquiry.expectedPrice ? `₹${Number(viewingSellEnquiry.expectedPrice).toLocaleString("en-IN")}` : "On Request"}
-                </span>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <span className="text-slate-400 block font-semibold">Total Area</span>
-                <span className="text-slate-900 dark:text-white font-bold">{viewingSellEnquiry.area || "—"} {viewingSellEnquiry.areaUnit || "Acre"}</span>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <span className="text-slate-400 block font-semibold">City / District</span>
-                <span className="text-slate-900 dark:text-white font-bold">{viewingSellEnquiry.city || viewingSellEnquiry.place || "—"}</span>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <span className="text-slate-400 block font-semibold">State</span>
-                <span className="text-slate-900 dark:text-white font-bold">{viewingSellEnquiry.state || "Madhya Pradesh"}</span>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <span className="text-slate-400 block font-semibold">Pincode</span>
-                <span className="text-slate-900 dark:text-white font-bold">{viewingSellEnquiry.postalCode || "—"}</span>
-              </div>
-            </div>
-
-            {/* Seller Information */}
-            <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 space-y-2 text-xs">
-              <span className="font-extrabold text-blue-900 dark:text-blue-300 block uppercase tracking-wider text-[11px]">
-                Seller Contact Information
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-800 dark:text-slate-200 font-medium">
-                <div><strong>Name:</strong> {viewingSellEnquiry.fullName}</div>
-                <div><strong>Mobile:</strong> {viewingSellEnquiry.mobileNumber}</div>
-                <div><strong>Email:</strong> {viewingSellEnquiry.email}</div>
-                <div><strong>Seller Place:</strong> {viewingSellEnquiry.place || viewingSellEnquiry.city || "—"}</div>
-              </div>
-            </div>
-
-            {/* Description */}
-            {viewingSellEnquiry.description && (
-              <div>
-                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">Description & Highlights</h4>
-                <p className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-                  {viewingSellEnquiry.description}
-                </p>
-              </div>
-            )}
-
-            {/* Photos Gallery */}
-            {viewingSellEnquiry.images && viewingSellEnquiry.images.length > 0 && (
-              <div>
-                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
-                  Plot Photos ({viewingSellEnquiry.images.length})
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {viewingSellEnquiry.images.map((img, idx) => (
-                    <a key={idx} href={img} target="_blank" rel="noreferrer" className="rounded-xl overflow-hidden aspect-video border border-slate-200 dark:border-slate-700 group relative">
-                      <img src={img} alt={`Plot ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                    </a>
-                  ))}
+              {/* Grid Specifications */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                  <span className="text-slate-400 block font-semibold">Category / Type</span>
+                  <span className="text-slate-900 dark:text-white font-bold">{modalParsed.category}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                  <span className="text-slate-400 block font-semibold">Expected Price</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">
+                    {modalParsed.priceStr}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                  <span className="text-slate-400 block font-semibold">Total Area</span>
+                  <span className="text-slate-900 dark:text-white font-bold">{modalParsed.areaStr}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                  <span className="text-slate-400 block font-semibold">Location / Place</span>
+                  <span className="text-slate-900 dark:text-white font-bold">{modalParsed.loc}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                  <span className="text-slate-400 block font-semibold">Status</span>
+                  <span className="text-slate-900 dark:text-white font-bold">{viewingSellEnquiry.status || "NEW"}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                  <span className="text-slate-400 block font-semibold">Submission Date</span>
+                  <span className="text-slate-900 dark:text-white font-bold">
+                    {viewingSellEnquiry.createdAt ? new Date(viewingSellEnquiry.createdAt).toLocaleDateString("en-IN") : "Recent"}
+                  </span>
                 </div>
               </div>
-            )}
+
+              {/* Contact Information */}
+              <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 space-y-2 text-xs">
+                <span className="font-extrabold text-blue-900 dark:text-blue-300 block uppercase tracking-wider text-[11px]">
+                  User / Seller Contact Information
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-800 dark:text-slate-200 font-medium">
+                  <div><strong>Name:</strong> {viewingSellEnquiry.fullName}</div>
+                  <div><strong>Mobile:</strong> {viewingSellEnquiry.mobileNumber}</div>
+                  <div><strong>Email:</strong> {viewingSellEnquiry.email}</div>
+                  <div><strong>City/District:</strong> {viewingSellEnquiry.city || viewingSellEnquiry.place || "—"}</div>
+                </div>
+              </div>
+
+              {/* Description / Message Details */}
+              {modalParsed.desc && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">Description & Notes</h4>
+                  <p className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap font-sans">
+                    {modalParsed.desc}
+                  </p>
+                </div>
+              )}
+
+              {/* Photos Gallery */}
+              {viewingSellEnquiry.images && viewingSellEnquiry.images.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
+                    Plot Photos ({viewingSellEnquiry.images.length})
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {viewingSellEnquiry.images.map((img, idx) => (
+                      <a key={idx} href={img} target="_blank" rel="noreferrer" className="rounded-xl overflow-hidden aspect-video border border-slate-200 dark:border-slate-700 group relative">
+                        <img src={img} alt={`Plot ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
 
             {/* Modal Bottom Actions */}
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
@@ -2275,7 +2325,8 @@ const AdminPanel: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
